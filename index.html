@@ -122,8 +122,9 @@
 
         <div class="grid">
           <div class="field">
-            <label for="funcionarios">Funcionários (1 por 100 m²)</label>
-            <input type="number" id="funcionarios" min="0" step="1" readonly />
+            <label for="funcionarios">Funcionários necessários</label>
+            <small id="infoFuncionarios" class="help-text">Regra automática: 1 funcionário a cada 100 m²</small>
+            <input type="number" id="funcionarios" min="0" step="1" readonly aria-describedby="infoFuncionarios" />
           </div>
 
           <div class="field">

@@ -89,6 +89,13 @@ label {
   color: var(--secondary);
 }
 
+.help-text {
+  margin-top: -2px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 input,
 select {
   width: 100%;

@@ -1,14 +1,16 @@
 const $ = (id) => document.getElementById(id);
 
-const AREA_PER_WORKER_M2 = 100;
+const M2_PER_WORKER = 100;
 const ROAD_DISTANCE_FACTOR = 1.25;
 const MIN_DISTANCE_FOR_TOLL_KM = 80;
 const TOLL_FACTOR_QUALP = 0.18;
 const TOLL_FACTOR_MAPS = 0.14;
+const QUALP_ROUTE_SP_RJ = { distanciaKm: 435, pedagio: 98.4, origem: "São Paulo", destino: "Rio de Janeiro" };
+const QUALP_ROUTE_RJ_SP = { distanciaKm: 435, pedagio: 98.4, origem: "Rio de Janeiro", destino: "São Paulo" };
 
 const QUALP_ROTAS_DB = {
-  "01001000-20040030": { distanciaKm: 435, pedagio: 98.4, origem: "São Paulo", destino: "Rio de Janeiro" },
-  "20040030-01001000": { distanciaKm: 435, pedagio: 98.4, origem: "Rio de Janeiro", destino: "São Paulo" }
+  "01001000-20040030": QUALP_ROUTE_SP_RJ,
+  "20040030-01001000": QUALP_ROUTE_RJ_SP
 };
 
 const cacheCoordenadas = new Map();
@@ -141,10 +143,14 @@ function estimarPedagio(distanciaKm, tipoMapa) {
   return distanciaKm * fator;
 }
 
+function calcularFuncionariosPorMetragem(metragem) {
+  return metragem > 0 ? Math.ceil(metragem / M2_PER_WORKER) : 0;
+}
+
 async function preencherEnderecoPorCep() {
   const cep = normalizarCep($("cep").value);
   if (cep.length !== 8) {
-    alert("Informe um CEP válido da obra.");
+    alert("Informe um CEP válido de 8 dígitos para a obra.");
     return;
   }
 
@@ -166,7 +172,7 @@ async function calcularRotaAutomatica() {
   const tipoMapa = $("tipoMapa").value;
 
   if (cepOrigem.length !== 8 || cepDestino.length !== 8) {
-    alert("Informe CEP de origem e CEP da obra para calcular a rota.");
+    alert("Informe o CEP de origem e o CEP da obra (ambos com 8 dígitos) para calcular a rota.");
     return;
   }
 
@@ -185,7 +191,7 @@ async function calcularRotaAutomatica() {
     ]);
 
     if (!coordsOrigem || !coordsDestino) {
-      alert("Não foi possível localizar coordenadas para calcular a rota automática.");
+      alert("Não foi possível localizar coordenadas para um ou ambos os CEPs. Verifique os CEPs ou preencha distância e pedágio manualmente.");
       return;
     }
 
@@ -226,7 +232,7 @@ function calcularOrcamento() {
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
 
-  const funcionariosCalculados = metragem > 0 ? Math.ceil(metragem / AREA_PER_WORKER_M2) : 0;
+  const funcionariosCalculados = calcularFuncionariosPorMetragem(metragem);
   $("funcionarios").value = funcionariosCalculados;
 
   const multiplicadorViagens = viagens > 0 ? viagens : 1;
@@ -337,7 +343,7 @@ $("cep").addEventListener("blur", preencherEnderecoPorCep);
 
 $("metragem").addEventListener("input", () => {
   const metragem = toNumber($("metragem").value);
-  $("funcionarios").value = metragem > 0 ? Math.ceil(metragem / AREA_PER_WORKER_M2) : 0;
+  $("funcionarios").value = calcularFuncionariosPorMetragem(metragem);
 });
 
 $("btnCalcular").addEventListener("click", calcularOrcamento);
