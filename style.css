@@ -89,7 +89,15 @@ label {
   color: var(--secondary);
 }
 
-input {
+.help-text {
+  margin-top: -2px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+input,
+select {
   width: 100%;
   height: 46px;
   padding: 10px 12px;
@@ -101,9 +109,15 @@ input {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+}
+
+input[readonly] {
+  background: #f8fafc;
+  color: var(--secondary);
 }
 
 .acoes {
@@ -139,6 +153,12 @@ input:focus {
 .btn-secondary {
   background: #e2e8f0;
   color: var(--text);
+}
+
+.btn-inline {
+  width: auto;
+  min-height: 46px;
+  padding: 10px 14px;
 }
 
 .resultado-card {
