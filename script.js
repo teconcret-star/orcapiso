@@ -1,8 +1,14 @@
 const $ = (id) => document.getElementById(id);
 
+const AREA_PER_WORKER_M2 = 100;
+const ROAD_DISTANCE_FACTOR = 1.25;
+const MIN_DISTANCE_FOR_TOLL_KM = 80;
+const TOLL_FACTOR_QUALP = 0.18;
+const TOLL_FACTOR_MAPS = 0.14;
+
 const QUALP_ROTAS_DB = {
-  "01001000-20040030": { distanciaKm: 435, pedagio: 98.4 },
-  "20040030-01001000": { distanciaKm: 435, pedagio: 98.4 }
+  "01001000-20040030": { distanciaKm: 435, pedagio: 98.4, origem: "São Paulo", destino: "Rio de Janeiro" },
+  "20040030-01001000": { distanciaKm: 435, pedagio: 98.4, origem: "Rio de Janeiro", destino: "São Paulo" }
 };
 
 const cacheCoordenadas = new Map();
@@ -130,8 +136,8 @@ async function buscarDistanciaMaps(coordsOrigem, coordsDestino) {
 }
 
 function estimarPedagio(distanciaKm, tipoMapa) {
-  if (distanciaKm < 80) return 0;
-  const fator = tipoMapa === "QUALP" ? 0.18 : 0.14;
+  if (distanciaKm < MIN_DISTANCE_FOR_TOLL_KM) return 0;
+  const fator = tipoMapa === "QUALP" ? TOLL_FACTOR_QUALP : TOLL_FACTOR_MAPS;
   return distanciaKm * fator;
 }
 
@@ -192,7 +198,7 @@ async function calcularRotaAutomatica() {
         coordsOrigem.lon,
         coordsDestino.lat,
         coordsDestino.lon
-      ) * 1.25;
+      ) * ROAD_DISTANCE_FACTOR;
     }
 
     pedagio = estimarPedagio(distanciaKm, tipoMapa);
@@ -220,7 +226,7 @@ function calcularOrcamento() {
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
 
-  const funcionariosCalculados = metragem > 0 ? Math.ceil(metragem / 100) : 0;
+  const funcionariosCalculados = metragem > 0 ? Math.ceil(metragem / AREA_PER_WORKER_M2) : 0;
   $("funcionarios").value = funcionariosCalculados;
 
   const multiplicadorViagens = viagens > 0 ? viagens : 1;
@@ -331,7 +337,7 @@ $("cep").addEventListener("blur", preencherEnderecoPorCep);
 
 $("metragem").addEventListener("input", () => {
   const metragem = toNumber($("metragem").value);
-  $("funcionarios").value = metragem > 0 ? Math.ceil(metragem / 100) : 0;
+  $("funcionarios").value = metragem > 0 ? Math.ceil(metragem / AREA_PER_WORKER_M2) : 0;
 });
 
 $("btnCalcular").addEventListener("click", calcularOrcamento);
