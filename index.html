@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Precificação de Piso Industrial</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topo">
+      <h1>Precificação de Piso Industrial</h1>
+      <p>Orçamento por m² com deslocamento, combustível, pedágio e mão de obra</p>
+    </header>
+
+    <main class="container">
+      <section class="card">
+        <h2>Dados do Cliente e da Obra</h2>
+
+        <div class="grid">
+          <div class="field">
+            <label for="cliente">Nome do cliente</label>
+            <input type="text" id="cliente" placeholder="Ex.: Construtora Alfa" />
+          </div>
+
+          <div class="field">
+            <label for="obra">Nome da obra</label>
+            <input type="text" id="obra" placeholder="Ex.: Galpão Industrial" />
+          </div>
+
+          <div class="field full">
+            <label for="endereco">Endereço da obra</label>
+            <input type="text" id="endereco" placeholder="Ex.: Rua Exemplo, 123 - Cidade/UF" />
+          </div>
+
+          <div class="field">
+            <label for="metragem">Metragem total (m²)</label>
+            <input type="number" id="metragem" min="0" step="0.01" placeholder="0,00" />
+          </div>
+
+          <div class="field">
+            <label for="distancia">Distância total (km)</label>
+            <input type="number" id="distancia" min="0" step="0.01" placeholder="0,00" />
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Custos de Deslocamento</h2>
+
+        <div class="grid">
+          <div class="field">
+            <label for="consumo">Consumo do veículo (km/l)</label>
+            <input type="number" id="consumo" min="0" step="0.01" placeholder="0,00" />
+          </div>
+
+          <div class="field">
+            <label for="precoCombustivel">Preço do combustível (R$/l)</label>
+            <input type="number" id="precoCombustivel" min="0" step="0.01" placeholder="0,00" />
+          </div>
+
+          <div class="field">
+            <label for="pedagio">Pedágio (R$)</label>
+            <input type="number" id="pedagio" min="0" step="0.01" placeholder="0,00" />
+          </div>
+
+          <div class="field">
+            <label for="viagens">Quantidade de viagens</label>
+            <input type="number" id="viagens" min="1" step="1" value="1" />
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Mão de Obra</h2>
+
+        <div class="grid">
+          <div class="field">
+            <label for="funcionarios">Número de funcionários</label>
+            <input type="number" id="funcionarios" min="0" step="1" placeholder="0" />
+          </div>
+
+          <div class="field">
+            <label for="valorDia">Valor por funcionário/dia (R$)</label>
+            <input type="number" id="valorDia" min="0" step="0.01" placeholder="0,00" />
+          </div>
+
+          <div class="field">
+            <label for="dias">Quantidade de dias</label>
+            <input type="number" id="dias" min="0" step="1" placeholder="0" />
+          </div>
+
+          <div class="field">
+            <label for="encargos">Encargos adicionais (R$)</label>
+            <input type="number" id="encargos" min="0" step="0.01" placeholder="0,00" />
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Outros Custos e Lucro</h2>
+
+        <div class="grid">
+          <div class="field">
+            <label for="outrosCustos">Outros custos (R$)</label>
+            <input type="number" id="outrosCustos" min="0" step="0.01" placeholder="0,00" />
+          </div>
+
+          <div class="field">
+            <label for="lucro">Margem de lucro (%)</label>
+            <input type="number" id="lucro" min="0" step="0.01" placeholder="0,00" />
+          </div>
+        </div>
+      </section>
+
+      <section class="acoes">
+        <button id="btnCalcular" class="btn btn-primary">Calcular orçamento</button>
+        <button id="btnLimpar" class="btn btn-secondary">Limpar campos</button>
+      </section>
+
+      <section class="card resultado-card">
+        <h2>Resultado do Orçamento</h2>
+
+        <div class="resultado-topo">
+          <div>
+            <span class="label">Cliente</span>
+            <strong id="resCliente">-</strong>
+          </div>
+          <div>
+            <span class="label">Obra</span>
+            <strong id="resObra">-</strong>
+          </div>
+          <div>
+            <span class="label">Área</span>
+            <strong id="resArea">0,00 m²</strong>
+          </div>
+        </div>
+
+        <div class="resultado-grid">
+          <div class="resultado-item">
+            <span>Custo com combustível</span>
+            <strong id="resCombustivel">R$ 0,00</strong>
+          </div>
+
+          <div class="resultado-item">
+            <span>Custo com pedágio</span>
+            <strong id="resPedagio">R$ 0,00</strong>
+          </div>
+
+          <div class="resultado-item">
+            <span>Custo com deslocamento</span>
+            <strong id="resDeslocamento">R$ 0,00</strong>
+          </div>
+
+          <div class="resultado-item">
+            <span>Custo com mão de obra</span>
+            <strong id="resMaoDeObra">R$ 0,00</strong>
+          </div>
+
+          <div class="resultado-item">
+            <span>Encargos adicionais</span>
+            <strong id="resEncargos">R$ 0,00</strong>
+          </div>
+
+          <div class="resultado-item">
+            <span>Outros custos</span>
+            <strong id="resOutros">R$ 0,00</strong>
+          </div>
+
+          <div class="resultado-item">
+            <span>Subtotal</span>
+            <strong id="resSubtotal">R$ 0,00</strong>
+          </div>
+
+          <div class="resultado-item">
+            <span>Lucro</span>
+            <strong id="resLucro">R$ 0,00</strong>
+          </div>
+        </div>
+
+        <div class="total-box">
+          <div>
+            <span class="label">Valor total</span>
+            <strong id="resTotal">R$ 0,00</strong>
+          </div>
+          <div>
+            <span class="label">Preço por m²</span>
+            <strong id="resValorM2">R$ 0,00</strong>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
