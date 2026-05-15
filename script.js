@@ -5,6 +5,7 @@ const ROAD_DISTANCE_FACTOR = 1.25;
 const MIN_DISTANCE_FOR_TOLL_KM = 80;
 const TOLL_FACTOR_QUALP = 0.18;
 const TOLL_FACTOR_MAPS = 0.14;
+const AUTO_ROUTE_DEBOUNCE_MS = 500;
 const QUALP_ROUTE_SP_RJ = { distanciaKm: 435, pedagio: 98.4, origem: "São Paulo", destino: "Rio de Janeiro" };
 const QUALP_ROUTE_RJ_SP = { distanciaKm: 435, pedagio: 98.4, origem: "Rio de Janeiro", destino: "São Paulo" };
 
@@ -14,6 +15,8 @@ const QUALP_ROTAS_DB = {
 };
 
 const cacheCoordenadas = new Map();
+let rotaAutomaticaTimeout = null;
+let ultimaChaveRotaAutomatica = "";
 
 // ── Google Maps ─────────────────────────────────────────────────────────────
 
@@ -340,10 +343,26 @@ function calcularFuncionariosPorMetragem(metragem) {
   return metragem > 0 ? Math.ceil(metragem / M2_PER_WORKER) : 0;
 }
 
-async function preencherEnderecoPorCep() {
-  const cep = normalizarCep($("cep").value);
+async function preencherEnderecoPorCepInput({
+  cepFieldId,
+  enderecoFieldId,
+  labelErro,
+  alertOnError = true
+}) {
+  const cepEl = $(cepFieldId);
+  const enderecoEl = $(enderecoFieldId);
+  if (!cepEl || !enderecoEl) {
+    if (alertOnError) {
+      alert("Não foi possível localizar os campos de CEP/endereço para preencher automaticamente.");
+    }
+    return;
+  }
+
+  const cep = normalizarCep(cepEl.value);
   if (cep.length !== 8) {
-    alert("Informe um CEP válido de 8 dígitos para a obra.");
+    if (alertOnError) {
+      alert(`Informe um CEP válido de 8 dígitos para ${labelErro}.`);
+    }
     return;
   }
 
@@ -352,21 +371,75 @@ async function preencherEnderecoPorCep() {
     const endereco = [dados.logradouro, dados.bairro, `${dados.localidade}/${dados.uf}`]
       .filter(Boolean)
       .join(" - ");
-    $("cep").value = formatarCep(cep);
-    $("endereco").value = endereco || $("endereco").value;
+    cepEl.value = formatarCep(cep);
+    enderecoEl.value = endereco || enderecoEl.value;
   } catch (error) {
-    alert(error.message || "Não foi possível buscar o CEP.");
+    if (alertOnError) {
+      alert(error.message || "Não foi possível buscar o CEP.");
+    }
   }
 }
 
-async function calcularRotaAutomatica() {
+async function preencherEnderecoPorCep(alertOnError = true) {
+  await preencherEnderecoPorCepInput({
+    cepFieldId: "cep",
+    enderecoFieldId: "endereco",
+    labelErro: "a obra",
+    alertOnError
+  });
+}
+
+async function preencherEnderecoOrigemPorCep(alertOnError = true) {
+  await preencherEnderecoPorCepInput({
+    cepFieldId: "cepOrigem",
+    enderecoFieldId: "enderecoOrigem",
+    labelErro: "a unidade base",
+    alertOnError
+  });
+}
+
+async function preencherEnderecosPorCep() {
+  await Promise.all([
+    preencherEnderecoOrigemPorCep(false),
+    preencherEnderecoPorCep(false)
+  ]);
+}
+
+function agendarCalculoRotaAutomatica() {
+  const cepOrigem = normalizarCep($("cepOrigem").value);
+  const cepDestino = normalizarCep($("cep").value);
+  if (cepOrigem.length !== 8 || cepDestino.length !== 8) {
+    return;
+  }
+
+  const chave = `${cepOrigem}-${cepDestino}-${$("tipoMapa").value}`;
+  if (chave === ultimaChaveRotaAutomatica) {
+    return;
+  }
+
+  if (rotaAutomaticaTimeout) {
+    clearTimeout(rotaAutomaticaTimeout);
+  }
+
+  rotaAutomaticaTimeout = setTimeout(async () => {
+    const sucesso = await calcularRotaAutomatica({ silent: true });
+    if (sucesso) {
+      ultimaChaveRotaAutomatica = chave;
+    }
+  }, AUTO_ROUTE_DEBOUNCE_MS);
+}
+
+async function calcularRotaAutomatica(options = {}) {
+  const { silent = false } = options;
   const cepOrigem = normalizarCep($("cepOrigem").value);
   const cepDestino = normalizarCep($("cep").value);
   const tipoMapa = $("tipoMapa").value;
 
   if (cepOrigem.length !== 8 || cepDestino.length !== 8) {
-    alert("Informe o CEP de origem e o CEP da obra (ambos com 8 dígitos) para calcular a rota.");
-    return;
+    if (!silent) {
+      alert("Informe o CEP de origem e o CEP da obra (ambos com 8 dígitos) para calcular a rota.");
+    }
+    return false;
   }
 
   $("cepOrigem").value = formatarCep(cepOrigem);
@@ -394,7 +467,7 @@ async function calcularRotaAutomatica() {
       }
 
       calcularOrcamento();
-      return;
+      return true;
     }
 
     const chaveRota = `${cepOrigem}-${cepDestino}`;
@@ -409,8 +482,10 @@ async function calcularRotaAutomatica() {
       ]);
 
       if (!coordsOrigem || !coordsDestino) {
-        alert("Não foi possível localizar coordenadas para um ou ambos os CEPs. Verifique os CEPs ou preencha distância e pedágio manualmente.");
-        return;
+        if (!silent) {
+          alert("Não foi possível localizar coordenadas para um ou ambos os CEPs. Verifique os CEPs ou preencha distância e pedágio manualmente.");
+        }
+        return false;
       }
 
       const distanciaMaps = await buscarDistanciaMaps(coordsOrigem, coordsDestino);
@@ -431,8 +506,12 @@ async function calcularRotaAutomatica() {
     $("distancia").value = distanciaKm.toFixed(2);
     $("pedagio").value = pedagio.toFixed(2);
     calcularOrcamento();
+    return true;
   } catch (error) {
-    alert(error.message || "Erro ao calcular rota.");
+    if (!silent) {
+      alert(error.message || "Erro ao calcular rota.");
+    }
+    return false;
   } finally {
     btn.textContent = textoOriginal;
     btn.disabled = false;
@@ -505,6 +584,7 @@ function limparCampos() {
     "telefone",
     "obra",
     "cepOrigem",
+    "enderecoOrigem",
     "cep",
     "endereco",
     "metragem",
@@ -528,6 +608,11 @@ function limparCampos() {
 
   $("viagens").value = 1;
   $("tipoMapa").value = "QUALP";
+  ultimaChaveRotaAutomatica = "";
+  if (rotaAutomaticaTimeout) {
+    clearTimeout(rotaAutomaticaTimeout);
+    rotaAutomaticaTimeout = null;
+  }
 
   $("mapaContainer").style.display = "none";
   mapaOverlays.forEach((o) => o.setMap(null));
@@ -567,16 +652,53 @@ $("cepOrigem").addEventListener("input", (event) => {
   event.target.value = formatarCep(event.target.value);
 });
 
-$("cep").addEventListener("blur", preencherEnderecoPorCep);
+$("cepOrigem").addEventListener("blur", async () => {
+  await preencherEnderecoOrigemPorCep();
+  agendarCalculoRotaAutomatica();
+});
+$("cep").addEventListener("blur", async () => {
+  await preencherEnderecoPorCep();
+  agendarCalculoRotaAutomatica();
+});
 
 $("metragem").addEventListener("input", () => {
   const metragem = toNumber($("metragem").value);
   $("funcionarios").value = calcularFuncionariosPorMetragem(metragem);
 });
 
+[
+  "cliente",
+  "obra",
+  "metragem",
+  "distancia",
+  "consumo",
+  "precoCombustivel",
+  "pedagio",
+  "consumoMaquinas",
+  "viagens",
+  "valorDia",
+  "dias",
+  "encargos",
+  "alimentacaoFuncionario",
+  "outrosCustos",
+  "lucro"
+].forEach((id) => {
+  $(id).addEventListener("input", calcularOrcamento);
+});
+
+$("cep").addEventListener("input", agendarCalculoRotaAutomatica);
+$("cepOrigem").addEventListener("input", agendarCalculoRotaAutomatica);
+$("tipoMapa").addEventListener("change", () => {
+  ultimaChaveRotaAutomatica = "";
+  agendarCalculoRotaAutomatica();
+});
+
 $("btnCalcular").addEventListener("click", calcularOrcamento);
 $("btnLimpar").addEventListener("click", limparCampos);
-$("btnBuscarCep").addEventListener("click", preencherEnderecoPorCep);
+$("btnBuscarCep").addEventListener("click", async () => {
+  await preencherEnderecosPorCep();
+  agendarCalculoRotaAutomatica();
+});
 $("btnRota").addEventListener("click", calcularRotaAutomatica);
 $("btnSalvarChave").addEventListener("click", salvarChaveGoogleMaps);
 $("btnLimparChave").addEventListener("click", limparChaveGoogleMaps);
