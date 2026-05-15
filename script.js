@@ -5,6 +5,7 @@ const ROAD_DISTANCE_FACTOR = 1.25;
 const MIN_DISTANCE_FOR_TOLL_KM = 80;
 const TOLL_FACTOR_QUALP = 0.18;
 const TOLL_FACTOR_MAPS = 0.14;
+const AUTO_ROUTE_DEBOUNCE_MS = 500;
 const QUALP_ROUTE_SP_RJ = { distanciaKm: 435, pedagio: 98.4, origem: "São Paulo", destino: "Rio de Janeiro" };
 const QUALP_ROUTE_RJ_SP = { distanciaKm: 435, pedagio: 98.4, origem: "Rio de Janeiro", destino: "São Paulo" };
 
@@ -348,7 +349,16 @@ async function preencherEnderecoPorCepInput({
   labelErro,
   alertOnError = true
 }) {
-  const cep = normalizarCep($(cepFieldId).value);
+  const cepEl = $(cepFieldId);
+  const enderecoEl = $(enderecoFieldId);
+  if (!cepEl || !enderecoEl) {
+    if (alertOnError) {
+      alert("Não foi possível localizar os campos de CEP/endereço para preencher automaticamente.");
+    }
+    return;
+  }
+
+  const cep = normalizarCep(cepEl.value);
   if (cep.length !== 8) {
     if (alertOnError) {
       alert(`Informe um CEP válido de 8 dígitos para ${labelErro}.`);
@@ -361,8 +371,7 @@ async function preencherEnderecoPorCepInput({
     const endereco = [dados.logradouro, dados.bairro, `${dados.localidade}/${dados.uf}`]
       .filter(Boolean)
       .join(" - ");
-    $(cepFieldId).value = formatarCep(cep);
-    const enderecoEl = $(enderecoFieldId);
+    cepEl.value = formatarCep(cep);
     enderecoEl.value = endereco || enderecoEl.value;
   } catch (error) {
     if (alertOnError) {
@@ -417,7 +426,7 @@ function agendarCalculoRotaAutomatica() {
     if (sucesso) {
       ultimaChaveRotaAutomatica = chave;
     }
-  }, 500);
+  }, AUTO_ROUTE_DEBOUNCE_MS);
 }
 
 async function calcularRotaAutomatica(options = {}) {
