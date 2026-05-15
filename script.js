@@ -15,6 +15,199 @@ const QUALP_ROTAS_DB = {
 
 const cacheCoordenadas = new Map();
 
+// ── Google Maps ─────────────────────────────────────────────────────────────
+
+const GMAPS_KEY_STORAGE = "gmaps_api_key";
+let googleMapsLoaded = false;
+let mapInstance = null;
+let mapaOverlays = [];
+
+function getGoogleMapsKey() {
+  return localStorage.getItem(GMAPS_KEY_STORAGE) || "";
+}
+
+function atualizarStatusChave() {
+  const key = getGoogleMapsKey();
+  const el = $("statusChave");
+  if (key) {
+    el.textContent = "✅ Chave configurada";
+    el.style.color = "var(--success)";
+  } else {
+    el.textContent = "⚠️ Nenhuma chave configurada";
+    el.style.color = "var(--muted)";
+  }
+}
+
+function salvarChaveGoogleMaps() {
+  const key = $("gmapsKey").value.trim();
+  if (!key) {
+    alert("Informe uma chave de API válida.");
+    return;
+  }
+  localStorage.setItem(GMAPS_KEY_STORAGE, key);
+  $("gmapsKey").value = "";
+  googleMapsLoaded = false;
+  atualizarStatusChave();
+}
+
+function limparChaveGoogleMaps() {
+  localStorage.removeItem(GMAPS_KEY_STORAGE);
+  $("gmapsKey").value = "";
+  googleMapsLoaded = false;
+  mapInstance = null;
+  atualizarStatusChave();
+}
+
+function carregarScriptGoogleMaps() {
+  if (googleMapsLoaded && window.google && window.google.maps) {
+    return Promise.resolve();
+  }
+
+  const key = getGoogleMapsKey();
+  if (!key) {
+    return Promise.reject(
+      new Error(
+        'Chave da API do Google Maps não configurada. Expanda "⚙️ Configuração — Google Maps API" no topo da página para configurar.'
+      )
+    );
+  }
+
+  return new Promise((resolve, reject) => {
+    if (window.google && window.google.maps) {
+      googleMapsLoaded = true;
+      resolve();
+      return;
+    }
+
+    window._gmapsReady = () => {
+      googleMapsLoaded = true;
+      resolve();
+    };
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=geometry&callback=_gmapsReady`;
+    script.async = true;
+    script.onerror = () =>
+      reject(
+        new Error(
+          "Falha ao carregar a API do Google Maps. Verifique se a chave de API está correta e se as APIs 'Routes API' e 'Maps JavaScript API' estão ativadas no Google Cloud Console."
+        )
+      );
+    document.head.appendChild(script);
+  });
+}
+
+async function calcularRotaGoogleMaps(cepOrigem, cepDestino) {
+  const key = getGoogleMapsKey();
+  if (!key) throw new Error("Chave da API do Google Maps não configurada.");
+
+  const fmt = (cep) => `${cep.slice(0, 5)}-${cep.slice(5)}, Brasil`;
+
+  const response = await fetch(
+    "https://routes.googleapis.com/directions/v2:computeRoutes",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": key,
+        "X-Goog-FieldMask":
+          "routes.distanceMeters,routes.travelAdvisory.tollInfo,routes.polyline.encodedPolyline"
+      },
+      body: JSON.stringify({
+        origin: { address: fmt(cepOrigem) },
+        destination: { address: fmt(cepDestino) },
+        travelMode: "DRIVE",
+        routingPreference: "TRAFFIC_UNAWARE",
+        extraComputations: ["TOLLS"],
+        routeModifiers: {
+          vehicleInfo: { emissionType: "DIESEL" }
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(
+      err?.error?.message || `Erro ao consultar Google Maps (HTTP ${response.status}).`
+    );
+  }
+
+  const data = await response.json();
+  const route = data?.routes?.[0];
+  if (!route) throw new Error("Nenhuma rota encontrada pelo Google Maps para os CEPs informados.");
+
+  const distanciaKm = (route.distanceMeters || 0) / 1000;
+
+  const tollPrices = route.travelAdvisory?.tollInfo?.estimatedPrice || [];
+  const brlToll = tollPrices.find((p) => p.currencyCode === "BRL");
+  let pedagio = 0;
+  if (brlToll) {
+    const units = Number(brlToll.units || "0");
+    const nanos = Number(brlToll.nanos || "0");
+    pedagio = units + nanos / 1_000_000_000;
+  }
+
+  return {
+    distanciaKm,
+    pedagio,
+    semPedagio: !brlToll,
+    polyline: route.polyline?.encodedPolyline || null
+  };
+}
+
+function exibirRotaNoMapa(encodedPolyline, info) {
+  const container = $("mapaContainer");
+  const mapaEl = $("mapa");
+  container.style.display = "block";
+
+  mapaOverlays.forEach((o) => o.setMap(null));
+  mapaOverlays = [];
+
+  if (!mapInstance) {
+    mapInstance = new google.maps.Map(mapaEl, {
+      zoom: 8,
+      center: { lat: -15.7801, lng: -47.9292 },
+      mapTypeId: "roadmap"
+    });
+  } else {
+    google.maps.event.trigger(mapInstance, "resize");
+  }
+
+  const path = google.maps.geometry.encoding.decodePath(encodedPolyline);
+
+  const polyline = new google.maps.Polyline({
+    path,
+    geodesic: true,
+    strokeColor: "#0f766e",
+    strokeOpacity: 1.0,
+    strokeWeight: 5
+  });
+  polyline.setMap(mapInstance);
+  mapaOverlays.push(polyline);
+
+  const bounds = new google.maps.LatLngBounds();
+  path.forEach((p) => bounds.extend(p));
+  mapInstance.fitBounds(bounds);
+
+  const markerOrigem = new google.maps.Marker({
+    position: path[0],
+    map: mapInstance,
+    title: "Origem"
+  });
+  const markerDestino = new google.maps.Marker({
+    position: path[path.length - 1],
+    map: mapInstance,
+    title: "Destino"
+  });
+  mapaOverlays.push(markerOrigem, markerDestino);
+
+  $("mapaInfo").textContent = info || "";
+  container.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function toNumber(value) {
   const number = parseFloat(value);
   return isNaN(number) ? 0 : number;
@@ -179,40 +372,71 @@ async function calcularRotaAutomatica() {
   $("cepOrigem").value = formatarCep(cepOrigem);
   $("cep").value = formatarCep(cepDestino);
 
-  const chaveRota = `${cepOrigem}-${cepDestino}`;
-  const rotaQualp = QUALP_ROTAS_DB[chaveRota];
-  let distanciaKm = rotaQualp?.distanciaKm || 0;
-  let pedagio = rotaQualp?.pedagio || 0;
+  const btn = $("btnRota");
+  const textoOriginal = btn.textContent;
+  btn.textContent = "Calculando…";
+  btn.disabled = true;
 
-  if (!distanciaKm) {
-    const [coordsOrigem, coordsDestino] = await Promise.all([
-      buscarCoordenadasCep(cepOrigem),
-      buscarCoordenadasCep(cepDestino)
-    ]);
+  try {
+    if (tipoMapa === "GOOGLEMAPS") {
+      await carregarScriptGoogleMaps();
+      const resultado = await calcularRotaGoogleMaps(cepOrigem, cepDestino);
 
-    if (!coordsOrigem || !coordsDestino) {
-      alert("Não foi possível localizar coordenadas para um ou ambos os CEPs. Verifique os CEPs ou preencha distância e pedágio manualmente.");
+      $("distancia").value = resultado.distanciaKm.toFixed(2);
+      $("pedagio").value = resultado.pedagio.toFixed(2);
+
+      const infoMapa = resultado.semPedagio
+        ? `Distância: ${formatNumber(resultado.distanciaKm)} km — Pedágio: R$ 0,00 (nenhum pedágio identificado nesta rota pelo Google Maps)`
+        : `Distância: ${formatNumber(resultado.distanciaKm)} km — Pedágio estimado: ${formatMoney(resultado.pedagio)}`;
+
+      if (resultado.polyline) {
+        exibirRotaNoMapa(resultado.polyline, infoMapa);
+      }
+
+      calcularOrcamento();
       return;
     }
 
-    const distanciaMaps = await buscarDistanciaMaps(coordsOrigem, coordsDestino);
-    if (distanciaMaps > 0) {
-      distanciaKm = distanciaMaps;
-    } else {
-      distanciaKm = haversineKm(
-        coordsOrigem.lat,
-        coordsOrigem.lon,
-        coordsDestino.lat,
-        coordsDestino.lon
-      ) * ROAD_DISTANCE_FACTOR;
+    const chaveRota = `${cepOrigem}-${cepDestino}`;
+    const rotaQualp = QUALP_ROTAS_DB[chaveRota];
+    let distanciaKm = rotaQualp?.distanciaKm || 0;
+    let pedagio = rotaQualp?.pedagio || 0;
+
+    if (!distanciaKm) {
+      const [coordsOrigem, coordsDestino] = await Promise.all([
+        buscarCoordenadasCep(cepOrigem),
+        buscarCoordenadasCep(cepDestino)
+      ]);
+
+      if (!coordsOrigem || !coordsDestino) {
+        alert("Não foi possível localizar coordenadas para um ou ambos os CEPs. Verifique os CEPs ou preencha distância e pedágio manualmente.");
+        return;
+      }
+
+      const distanciaMaps = await buscarDistanciaMaps(coordsOrigem, coordsDestino);
+      if (distanciaMaps > 0) {
+        distanciaKm = distanciaMaps;
+      } else {
+        distanciaKm = haversineKm(
+          coordsOrigem.lat,
+          coordsOrigem.lon,
+          coordsDestino.lat,
+          coordsDestino.lon
+        ) * ROAD_DISTANCE_FACTOR;
+      }
+
+      pedagio = estimarPedagio(distanciaKm, tipoMapa);
     }
 
-    pedagio = estimarPedagio(distanciaKm, tipoMapa);
+    $("distancia").value = distanciaKm.toFixed(2);
+    $("pedagio").value = pedagio.toFixed(2);
+    calcularOrcamento();
+  } catch (error) {
+    alert(error.message || "Erro ao calcular rota.");
+  } finally {
+    btn.textContent = textoOriginal;
+    btn.disabled = false;
   }
-
-  $("distancia").value = distanciaKm.toFixed(2);
-  $("pedagio").value = pedagio.toFixed(2);
-  calcularOrcamento();
 }
 
 function calcularOrcamento() {
@@ -305,6 +529,10 @@ function limparCampos() {
   $("viagens").value = 1;
   $("tipoMapa").value = "QUALP";
 
+  $("mapaContainer").style.display = "none";
+  mapaOverlays.forEach((o) => o.setMap(null));
+  mapaOverlays = [];
+
   $("resCliente").textContent = "-";
   $("resObra").textContent = "-";
   $("resArea").textContent = "0,00 m²";
@@ -350,3 +578,8 @@ $("btnCalcular").addEventListener("click", calcularOrcamento);
 $("btnLimpar").addEventListener("click", limparCampos);
 $("btnBuscarCep").addEventListener("click", preencherEnderecoPorCep);
 $("btnRota").addEventListener("click", calcularRotaAutomatica);
+$("btnSalvarChave").addEventListener("click", salvarChaveGoogleMaps);
+$("btnLimparChave").addEventListener("click", limparChaveGoogleMaps);
+
+// Initialize Google Maps key status on load
+atualizarStatusChave();
