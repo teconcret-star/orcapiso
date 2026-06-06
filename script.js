@@ -747,7 +747,9 @@ async function salvarUsuario() {
       updatedAt: now,
       profile: {
         ...buildDefaultProfile({ name: formData.name, email: formData.email }),
-        ...(users[index].profile || {})
+        ...(users[index].profile || {}),
+        nomeVendedor: formData.name,
+        emailVendedor: formData.email
       }
     };
 
@@ -1048,6 +1050,7 @@ async function salvarProposta() {
 
   const list = getSavedProposals();
   const now = Date.now();
+  const existingProposal = editingProposalId ? list.find((item) => item.id === editingProposalId) : null;
   const propostaAtualizada = {
     titulo: $("propostaTitulo").value.trim() || "Proposta sem título",
     cliente: $("cliente").value.trim() || "Cliente não informado",
@@ -1055,9 +1058,9 @@ async function salvarProposta() {
     timestamp: now,
     total: resumo.total,
     valorM2: resumo.valorM2,
-    ownerId: currentUserId,
-    ownerName: currentUser.name,
-    ownerEmail: currentUser.email,
+    ownerId: existingProposal?.ownerId || currentUserId,
+    ownerName: existingProposal?.ownerName || currentUser.name,
+    ownerEmail: existingProposal?.ownerEmail || currentUser.email,
     snapshot: proposalFieldsSnapshot()
   };
 
