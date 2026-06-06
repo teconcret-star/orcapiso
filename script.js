@@ -102,6 +102,7 @@ let currentUserId = "";
 let currentUser = null;
 let printProposalPendingCleanup = false;
 let printCleanupRetryTimeoutId = null;
+let usersCache = [];
 let firestoreDb = null;
 let firebaseSyncEnabled = false;
 let firestoreUnsubscribers = [];
@@ -407,7 +408,7 @@ function subscribeFirestoreChanges() {
       if (!snap.exists) return;
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
-      writeJsonStorage(USERS_STORAGE_KEY, data);
+      usersCache = data;
       if (currentUserId) {
         refreshCurrentUser();
         renderUsersTable();
@@ -460,12 +461,7 @@ async function bootstrapStorageFromFirebase() {
     ]);
 
     if (users && Array.isArray(users)) {
-      writeJsonStorage(USERS_STORAGE_KEY, users);
-    } else {
-      const localUsers = readJsonStorage(USERS_STORAGE_KEY, null);
-      if (localUsers && Array.isArray(localUsers) && localUsers.length) {
-        syncFirestoreDoc(FIRESTORE_USERS_DOC, localUsers);
-      }
+      usersCache = users;
     }
 
     if (proposals && Array.isArray(proposals)) {
@@ -831,14 +827,14 @@ async function preencherEnderecosPorCep() {
 }
 
 function getUsers() {
-  return normalizeUsersForStorage(readJsonStorage(USERS_STORAGE_KEY, []));
+  return normalizeUsersForStorage(usersCache);
 }
 
 function saveUsers(list) {
   const normalizedList = normalizeUsersForStorage(list);
-  const success = writeJsonStorage(USERS_STORAGE_KEY, normalizedList);
-  if (success) syncFirestoreDoc(FIRESTORE_USERS_DOC, normalizedList);
-  return success;
+  usersCache = normalizedList;
+  syncFirestoreDoc(FIRESTORE_USERS_DOC, normalizedList);
+  return true;
 }
 
 function getSavedProposals() {
