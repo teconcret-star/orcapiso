@@ -350,6 +350,26 @@
 
             <div class="grid">
               <div class="field">
+                <label for="terraplanagemTotal">Terraplanagem (valor total R$)</label>
+                <input type="number" id="terraplanagemTotal" min="0" step="0.01" placeholder="0,00" />
+                <small class="help-text">Valor total diluído automaticamente no m² do piso.</small>
+              </div>
+
+              <div class="field">
+                <label for="pisoTela">Piso com tela?</label>
+                <select id="pisoTela">
+                  <option value="sem_tela">Sem tela</option>
+                  <option value="com_tela">Com tela</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="valorTelaM2">Valor da tela por m² (R$)</label>
+                <input type="number" id="valorTelaM2" min="0" step="0.01" placeholder="0,00" disabled />
+                <small id="infoPisoTela" class="help-text">Disponível apenas quando o piso for com tela.</small>
+              </div>
+
+              <div class="field">
                 <label for="outrosCustos">Outros custos (R$)</label>
                 <input type="number" id="outrosCustos" min="0" step="0.01" placeholder="0,00" />
               </div>
