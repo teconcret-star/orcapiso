@@ -384,7 +384,10 @@ function aplicarEstimativaMercadoPreCadastrada() {
   if (!isAdmin()) return;
   const presetId = $("presetEstimativaMercado").value;
   const preset = MACHINE_DATABASE_PRESETS[presetId];
-  if (!preset) return;
+  if (!preset) {
+    showToast("Estimativa pré-cadastrada não encontrada.", true);
+    return;
+  }
 
   applyMachineDatabaseValuesToForm(preset);
   calcularOrcamento();
