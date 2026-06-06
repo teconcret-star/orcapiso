@@ -178,25 +178,17 @@ async function preencherEnderecoPorCepInput({ cepFieldId, enderecoFieldId, label
 }
 
 async function preencherEnderecosPorCep() {
-  const results = await Promise.all([
-    preencherEnderecoPorCepInput({
-      cepFieldId: "cepOrigem",
-      enderecoFieldId: "enderecoOrigem",
-      labelErro: "a unidade base",
-      alertOnError: false
-    }),
-    preencherEnderecoPorCepInput({
-      cepFieldId: "cep",
-      enderecoFieldId: "endereco",
-      labelErro: "a obra",
-      alertOnError: false
-    })
-  ]);
+  const preenchido = await preencherEnderecoPorCepInput({
+    cepFieldId: "cep",
+    enderecoFieldId: "endereco",
+    labelErro: "a obra",
+    alertOnError: false
+  });
 
-  if (results.some(Boolean)) {
+  if (preenchido) {
     showToast("Endereços atualizados com sucesso.");
   } else {
-    showToast("Não foi possível preencher os endereços. Revise os CEPs informados.", true);
+    showToast("Não foi possível preencher o endereço da obra. Revise o CEP informado.", true);
   }
 }
 
@@ -404,6 +396,7 @@ function calcularOrcamento() {
   const dias = toNumber($("dias").value);
   const encargos = toNumber($("encargos").value);
   const alimentacaoFuncionario = toNumber($("alimentacaoFuncionario").value);
+  const hotelFuncionario = toNumber($("hotelFuncionario").value);
   const consumoMaquinas = toNumber($("consumoMaquinas").value);
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
@@ -427,9 +420,10 @@ function calcularOrcamento() {
   const custoDeslocamento = custoCombustivel + custoPedagio;
   const custoMaoDeObra = funcionariosSelecionados * valorDia * dias;
   const custoAlimentacao = funcionariosSelecionados * alimentacaoFuncionario * dias;
+  const custoHotel = funcionariosSelecionados * hotelFuncionario * dias;
   const custoCombustivelMaquinas = consumoMaquinas * precoCombustivel;
   const subtotal =
-    custoDeslocamento + custoMaoDeObra + custoAlimentacao + custoCombustivelMaquinas + encargos + outrosCustos;
+    custoDeslocamento + custoMaoDeObra + custoAlimentacao + custoHotel + custoCombustivelMaquinas + encargos + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
   const total = subtotal + valorLucro;
   const valorM2 = metragem > 0 ? total / metragem : 0;
@@ -444,6 +438,7 @@ function calcularOrcamento() {
   $("resMaoDeObra").textContent = formatMoney(custoMaoDeObra);
   $("resFuncionarios").textContent = String(funcionariosSelecionados);
   $("resAlimentacao").textContent = formatMoney(custoAlimentacao);
+  $("resHotel").textContent = formatMoney(custoHotel);
   $("resCombustivelMaquinas").textContent = formatMoney(custoCombustivelMaquinas);
   $("resEncargos").textContent = formatMoney(encargos);
   $("resOutros").textContent = formatMoney(outrosCustos);
@@ -476,8 +471,6 @@ function limparCampos() {
     "email",
     "telefone",
     "obra",
-    "cepOrigem",
-    "enderecoOrigem",
     "cep",
     "endereco",
     "metragem",
@@ -492,6 +485,7 @@ function limparCampos() {
     "dias",
     "encargos",
     "alimentacaoFuncionario",
+    "hotelFuncionario",
     "outrosCustos",
     "lucro",
     "propostaTitulo",
@@ -523,8 +517,6 @@ function proposalFieldsSnapshot() {
     "email",
     "telefone",
     "obra",
-    "cepOrigem",
-    "enderecoOrigem",
     "cep",
     "endereco",
     "metragem",
@@ -539,6 +531,7 @@ function proposalFieldsSnapshot() {
     "dias",
     "encargos",
     "alimentacaoFuncionario",
+    "hotelFuncionario",
     "outrosCustos",
     "lucro",
     "viagens",
@@ -806,19 +799,6 @@ $("cep").addEventListener("input", (event) => {
   event.target.value = formatarCep(event.target.value);
 });
 
-$("cepOrigem").addEventListener("input", (event) => {
-  event.target.value = formatarCep(event.target.value);
-});
-
-$("cepOrigem").addEventListener("blur", async () => {
-  await preencherEnderecoPorCepInput({
-    cepFieldId: "cepOrigem",
-    enderecoFieldId: "enderecoOrigem",
-    labelErro: "a unidade base"
-  });
-  salvarRascunhoLocal();
-});
-
 $("cep").addEventListener("blur", async () => {
   await preencherEnderecoPorCepInput({
     cepFieldId: "cep",
@@ -853,8 +833,6 @@ $("funcionarios").addEventListener("input", () => {
   "email",
   "telefone",
   "obra",
-  "cepOrigem",
-  "enderecoOrigem",
   "cep",
   "endereco",
   "distancia",
@@ -867,6 +845,7 @@ $("funcionarios").addEventListener("input", () => {
   "dias",
   "encargos",
   "alimentacaoFuncionario",
+  "hotelFuncionario",
   "outrosCustos",
   "lucro",
   "propostaTitulo",
