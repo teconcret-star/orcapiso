@@ -971,10 +971,6 @@ function alternarStatusUsuario(id) {
     showToast("Administrador deve permanecer ativo.", true);
     return;
   }
-  if (targetUser.id === currentUserId && targetUser.role === ROLE_ADMIN) {
-    showToast("O administrador logado não pode inativar a própria conta.", true);
-    return;
-  }
 
   const nextUsers = users.map((user) => user.id === id ? { ...user, active: !user.active, updatedAt: Date.now() } : user);
   if (!countActiveAdmins(nextUsers)) {
