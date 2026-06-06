@@ -9,6 +9,8 @@ const WORKER_MODE_AUTO = "auto";
 const WORKER_MODE_MANUAL = "manual";
 // Fallback delay to clear print mode when canceling print in browsers that may skip afterprint (e.g. some Safari/Firefox flows).
 const PRINT_CLASS_CLEANUP_DELAY_MS = 500;
+const DEFAULT_STANDARD_TEXT =
+  "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
 
 let logoDataUrl = "";
 let toastTimeoutId;
@@ -36,6 +38,10 @@ function formatNumber(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+}
+
+function formatDate(value = new Date()) {
+  return value.toLocaleDateString("pt-BR");
 }
 
 function createUniqueId() {
@@ -83,6 +89,10 @@ function updateDraftStatus(message, isError = false) {
   const status = $("draftStatus");
   status.textContent = message;
   status.classList.toggle("error", isError);
+}
+
+function getTextoPadraoProposta() {
+  return $("propostaTextoPadrao").value.trim() || DEFAULT_STANDARD_TEXT;
 }
 
 function formatarCep(value) {
@@ -386,6 +396,9 @@ function limparPerfil() {
 function calcularOrcamento() {
   const cliente = $("cliente").value.trim() || "-";
   const obra = $("obra").value.trim() || "-";
+  const documento = $("documento").value.trim() || "-";
+  const telefone = $("telefone").value.trim() || "-";
+  const endereco = $("endereco").value.trim() || "-";
   const metragem = toNumber($("metragem").value);
   const distancia = toNumber($("distancia").value);
   const consumo = toNumber($("consumo").value);
@@ -429,8 +442,14 @@ function calcularOrcamento() {
   const valorM2 = metragem > 0 ? total / metragem : 0;
 
   $("resCliente").textContent = cliente;
-  $("resObra").textContent = obra;
+  $("resObra").textContent = `OBRA: ${obra}`;
   $("resArea").textContent = `${formatNumber(metragem)} m²`;
+  $("prevClienteDocumento").textContent = `CPF/CNPJ: ${documento}`;
+  $("prevClienteTelefone").textContent = `Telefone: ${telefone}`;
+  $("prevEnderecoObra").textContent = `Endereço da obra: ${endereco}`;
+  $("prevResponsavel").textContent = `A/C: ${$("propostaResponsavel").value.trim() || "-"}`;
+  $("prevLocalData").textContent = [$("propostaCidade").value.trim(), formatDate()].filter(Boolean).join(", ");
+  $("prevNumeroProposta").textContent = `Proposta Nº ${$("propostaNumero").value.trim() || "-"}`;
 
   $("resCombustivel").textContent = formatMoney(custoCombustivel);
   $("resPedagio").textContent = formatMoney(custoPedagio);
@@ -447,10 +466,11 @@ function calcularOrcamento() {
   $("resTotal").textContent = formatMoney(total);
   $("resValorM2").textContent = formatMoney(valorM2);
 
-  $("prevTitulo").textContent = $("propostaTitulo").value.trim() || "-";
+  $("prevTitulo").textContent = $("propostaTitulo").value.trim() || "Proposta Comercial";
   $("prevValidade").textContent = $("propostaValidade").value.trim() || "-";
   $("prevPrazo").textContent = $("propostaPrazo").value.trim() || "-";
   $("prevPagamento").textContent = $("propostaPagamento").value.trim() || "-";
+  $("prevTextoPadrao").textContent = getTextoPadraoProposta();
   $("prevObservacoes").textContent = `Observações: ${$("propostaObservacoes").value.trim() || "-"}`;
   atualizarPreviaPerfil();
 
@@ -489,9 +509,13 @@ function limparCampos() {
     "outrosCustos",
     "lucro",
     "propostaTitulo",
+    "propostaNumero",
     "propostaValidade",
+    "propostaCidade",
     "propostaPagamento",
     "propostaPrazo",
+    "propostaResponsavel",
+    "propostaTextoPadrao",
     "propostaObservacoes"
   ];
 
@@ -501,6 +525,7 @@ function limparCampos() {
 
   $("viagens").value = 1;
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
+  $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   editingProposalId = "";
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarTextoBotaoProposta();
@@ -536,9 +561,13 @@ function proposalFieldsSnapshot() {
     "lucro",
     "viagens",
     "propostaTitulo",
+    "propostaNumero",
     "propostaValidade",
+    "propostaCidade",
     "propostaPagamento",
     "propostaPrazo",
+    "propostaResponsavel",
+    "propostaTextoPadrao",
     "propostaObservacoes"
   ];
 
@@ -726,12 +755,15 @@ function gerarMensagemWhatsApp() {
     "",
     `Cliente: ${$("cliente").value.trim() || "-"}`,
     `Obra: ${$("obra").value.trim() || "-"}`,
+    `Endereço da obra: ${$("endereco").value.trim() || "-"}`,
     `Área: ${$("resArea").textContent}`,
     `Valor total: ${$("resTotal").textContent}`,
     `Preço por m²: ${$("resValorM2").textContent}`,
+    `Número da proposta: ${$("propostaNumero").value.trim() || "-"}`,
     `Validade: ${$("propostaValidade").value.trim() || "-"}`,
     `Prazo: ${$("propostaPrazo").value.trim() || "-"}`,
     `Pagamento: ${$("propostaPagamento").value.trim() || "-"}`,
+    `A/C: ${$("propostaResponsavel").value.trim() || "-"}`,
     `Observações: ${$("propostaObservacoes").value.trim() || "-"}`,
     "",
     `Vendedor: ${profile.nomeVendedor || "-"}`,
@@ -849,9 +881,13 @@ $("funcionarios").addEventListener("input", () => {
   "outrosCustos",
   "lucro",
   "propostaTitulo",
+  "propostaNumero",
   "propostaValidade",
+  "propostaCidade",
   "propostaPagamento",
   "propostaPrazo",
+  "propostaResponsavel",
+  "propostaTextoPadrao",
   "propostaObservacoes"
 ].forEach((id) => {
   $(id).addEventListener("input", () => {
@@ -932,4 +968,7 @@ atualizarTextoBotaoPerfil();
 atualizarTextoBotaoProposta();
 atualizarModoFuncionarios({ preserveManualValue: false });
 carregarRascunhoLocal();
+if (!$("propostaTextoPadrao").value.trim()) {
+  $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
+}
 calcularOrcamento();

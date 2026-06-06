@@ -301,55 +301,131 @@ select {
 .proposta-preview {
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 16px;
+  padding: 28px;
   background: #fff;
   margin-bottom: 16px;
 }
 
 .proposta-cabecalho {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 14px;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
 }
 
 .logo-proposta {
-  width: 90px;
-  height: 90px;
+  width: 110px;
+  height: 110px;
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
 }
 
-.proposta-cabecalho h3 {
+.proposta-cabecalho-logo {
+  min-height: 110px;
+  min-width: 110px;
+}
+
+.proposta-cabecalho-empresa {
+  margin-left: auto;
+  text-align: right;
+}
+
+.proposta-cabecalho-empresa h3 {
   margin: 0 0 6px;
+  font-size: 1.75rem;
+  color: #166534;
 }
 
-.proposta-cabecalho p {
+.proposta-cabecalho-empresa p {
   margin: 0;
-  color: var(--muted);
-  font-size: 0.92rem;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
-.proposta-meta {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
+.proposta-faixa {
+  height: 3px;
+  margin: 22px 0 18px;
+  background: #166534;
 }
 
-.resultado-topo {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding: 14px;
-  background: var(--highlight);
-  border: 1px solid #c8f2f7;
-  border-radius: 12px;
+.proposta-local-data,
+.proposta-identificacao,
+.proposta-dados-cliente {
   margin-bottom: 18px;
+}
+
+.proposta-local-data p,
+.proposta-identificacao p,
+.proposta-dados-cliente p,
+.proposta-condicoes p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+  color: #111827;
+}
+
+.proposta-identificacao p,
+.proposta-dados-cliente p:first-child,
+.proposta-secao h4 {
+  font-weight: 700;
+}
+
+.proposta-secao {
+  margin-bottom: 18px;
+}
+
+.proposta-secao h4 {
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  background: #e5e7eb;
+  text-transform: uppercase;
+  text-decoration: underline;
+  font-size: 1rem;
+}
+
+.proposta-secao p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.proposal-table-wrap {
+  margin-top: 0;
+  overflow: visible;
+}
+
+.proposal-table {
+  border-radius: 0;
+}
+
+.proposal-table th,
+.proposal-table td {
+  text-align: center;
+  border: 1px solid #9ca3af;
+  padding: 12px 10px;
+}
+
+.proposal-table th {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.proposal-table td {
+  font-weight: 700;
+}
+
+.calculo-resumo {
+  margin-top: 18px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+}
+
+.calculo-resumo h4 {
+  margin: 0 0 14px;
 }
 
 .label {
@@ -382,35 +458,31 @@ select {
   font-size: 1.1rem;
 }
 
-.total-box {
-  margin-top: 18px;
-  padding: 18px;
-  border-radius: 14px;
-  background: #0f172a;
-  color: white;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.total-box .label {
-  color: #cbd5e1;
-}
-
-.total-box strong {
-  font-size: 1.6rem;
-  color: #86efac;
-}
-
-.proposta-rodape {
+.proposta-assinaturas {
   margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-  color: var(--secondary);
+  padding-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 48px;
 }
 
-.proposta-rodape p {
-  margin: 8px 0;
+.assinatura-box {
+  text-align: center;
+}
+
+.assinatura-box p,
+.assinatura-box strong {
+  margin: 6px 0 0;
+}
+
+.assinatura-linha {
+  height: 1px;
+  background: #111827;
+  margin-bottom: 8px;
+}
+
+.no-print {
+  display: block;
 }
 
 .toast {
@@ -435,9 +507,7 @@ select {
 @media (max-width: 768px) {
   .grid,
   .resultado-grid,
-  .resultado-topo,
-  .total-box,
-  .proposta-meta {
+  .proposta-assinaturas {
     grid-template-columns: 1fr;
   }
 
@@ -447,6 +517,16 @@ select {
   .proposta-cabecalho {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .proposta-cabecalho-empresa {
+    text-align: left;
+    margin-left: 0;
+  }
+
+  .logo-proposta {
+    width: 96px;
+    height: 96px;
   }
 
   .table-actions {
@@ -492,7 +572,7 @@ select {
   body.print-proposal .card:not(.resultado-card),
   body.print-proposal .acoes,
   body.print-proposal .status-text,
-  body.print-proposal .table-wrap,
+  body.print-proposal .table-wrap:not(.proposal-table-wrap),
   body.print-proposal #toast {
     display: none !important;
   }
@@ -528,6 +608,10 @@ select {
     border-radius: 0;
     margin: 0;
     padding: 0;
+  }
+
+   body.print-proposal .no-print {
+    display: none !important;
   }
 }
 

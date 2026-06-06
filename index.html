@@ -242,8 +242,16 @@
               <input type="text" id="propostaTitulo" placeholder="Ex.: Proposta de execução de piso industrial" />
             </div>
             <div class="field">
+              <label for="propostaNumero">Número da proposta</label>
+              <input type="text" id="propostaNumero" placeholder="Ex.: 0083" />
+            </div>
+            <div class="field">
               <label for="propostaValidade">Validade da proposta</label>
               <input type="text" id="propostaValidade" placeholder="Ex.: 15 dias" />
+            </div>
+            <div class="field">
+              <label for="propostaCidade">Cidade/UF da proposta</label>
+              <input type="text" id="propostaCidade" placeholder="Ex.: Nova Serrana, MG" />
             </div>
             <div class="field">
               <label for="propostaPagamento">Condição de pagamento</label>
@@ -253,9 +261,17 @@
               <label for="propostaPrazo">Prazo de execução</label>
               <input type="text" id="propostaPrazo" placeholder="Ex.: 7 dias úteis" />
             </div>
+            <div class="field">
+              <label for="propostaResponsavel">A/C responsável</label>
+              <input type="text" id="propostaResponsavel" placeholder="Ex.: Eng. Carlos Silva" />
+            </div>
             <div class="field full">
-              <label for="propostaObservacoes">Observações</label>
-              <textarea id="propostaObservacoes" rows="4" placeholder="Ex.: Materiais e equipe inclusos conforme escopo descrito."></textarea>
+              <label for="propostaTextoPadrao">Texto padrão da proposta</label>
+              <textarea id="propostaTextoPadrao" rows="4">Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.</textarea>
+            </div>
+            <div class="field full">
+              <label for="propostaObservacoes">Observações e condições adicionais</label>
+              <textarea id="propostaObservacoes" rows="4" placeholder="Ex.: Pagamento em 2 etapas, início mediante aprovação da proposta e disponibilidade da obra."></textarea>
             </div>
           </div>
         </section>
@@ -272,112 +288,151 @@
 
           <article class="proposta-preview">
             <div class="proposta-cabecalho">
-              <img id="prevLogo" class="logo-proposta" alt="Logo da empresa" hidden />
-              <div>
+              <div class="proposta-cabecalho-logo">
+                <img id="prevLogo" class="logo-proposta" alt="Logo da empresa" hidden />
+              </div>
+              <div class="proposta-cabecalho-empresa">
                 <h3 id="prevEmpresa">Sua empresa</h3>
                 <p id="prevEmpresaCnpj">CNPJ: -</p>
                 <p id="prevEmpresaEndereco">Endereço: -</p>
+                <p><span id="prevVendedorContato">-</span></p>
+                <p><span id="prevVendedorEmail">-</span></p>
               </div>
             </div>
 
-            <div class="resultado-topo">
-              <div>
-                <span class="label">Cliente</span>
-                <strong id="resCliente">-</strong>
+            <div class="proposta-faixa"></div>
+
+            <div class="proposta-local-data">
+              <p id="prevLocalData">-</p>
+            </div>
+
+            <div class="proposta-identificacao">
+              <p><strong id="prevTitulo">Proposta Comercial</strong></p>
+              <p><strong id="prevNumeroProposta">Proposta Nº -</strong></p>
+            </div>
+
+            <div class="proposta-dados-cliente">
+              <p><strong id="resCliente">-</strong></p>
+              <p id="prevClienteDocumento">CPF/CNPJ: -</p>
+              <p id="prevClienteTelefone">Telefone: -</p>
+              <p id="resObra">OBRA: -</p>
+              <p id="prevEnderecoObra">Endereço da obra: -</p>
+              <p id="prevResponsavel">A/C: -</p>
+            </div>
+
+            <section class="proposta-secao">
+              <h4>ESCOPO</h4>
+              <p id="prevTextoPadrao">-</p>
+            </section>
+
+            <section class="proposta-secao">
+              <h4>VALORES</h4>
+              <div class="table-wrap proposal-table-wrap">
+                <table class="data-table proposal-table">
+                  <thead>
+                    <tr>
+                      <th>Área do piso</th>
+                      <th>Valor por m²</th>
+                      <th>Valor total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td id="resArea">0,00 m²</td>
+                      <td id="resValorM2">R$ 0,00</td>
+                      <td id="resTotal">R$ 0,00</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-              <div>
-                <span class="label">Obra</span>
-                <strong id="resObra">-</strong>
+            </section>
+
+            <section class="proposta-secao">
+              <h4>CONDIÇÕES COMERCIAIS</h4>
+              <div class="proposta-condicoes">
+                <p><strong>Validade:</strong> <span id="prevValidade">-</span></p>
+                <p><strong>Prazo de execução:</strong> <span id="prevPrazo">-</span></p>
+                <p><strong>Condição de pagamento:</strong> <span id="prevPagamento">-</span></p>
+                <p id="prevObservacoes">Observações: -</p>
               </div>
-              <div>
-                <span class="label">Área</span>
-                <strong id="resArea">0,00 m²</strong>
+            </section>
+
+            <div class="calculo-resumo no-print">
+              <h4>Resumo interno do cálculo</h4>
+              <div class="resultado-grid">
+                <div class="resultado-item">
+                  <span>Custo com combustível</span>
+                  <strong id="resCombustivel">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Custo com pedágio</span>
+                  <strong id="resPedagio">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Custo com deslocamento</span>
+                  <strong id="resDeslocamento">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Custo com mão de obra</span>
+                  <strong id="resMaoDeObra">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Funcionários considerados</span>
+                  <strong id="resFuncionarios">0</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Custo com alimentação</span>
+                  <strong id="resAlimentacao">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Custo com estadia (hotel)</span>
+                  <strong id="resHotel">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Combustível de máquinas</span>
+                  <strong id="resCombustivelMaquinas">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Encargos adicionais</span>
+                  <strong id="resEncargos">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Outros custos</span>
+                  <strong id="resOutros">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Subtotal</span>
+                  <strong id="resSubtotal">R$ 0,00</strong>
+                </div>
+
+                <div class="resultado-item">
+                  <span>Lucro</span>
+                  <strong id="resLucro">R$ 0,00</strong>
+                </div>
               </div>
             </div>
 
-            <div class="proposta-meta">
-              <div><span class="label">Título</span><strong id="prevTitulo">-</strong></div>
-              <div><span class="label">Validade</span><strong id="prevValidade">-</strong></div>
-              <div><span class="label">Prazo</span><strong id="prevPrazo">-</strong></div>
-              <div><span class="label">Pagamento</span><strong id="prevPagamento">-</strong></div>
-            </div>
-
-            <div class="resultado-grid">
-              <div class="resultado-item">
-                <span>Custo com combustível</span>
-                <strong id="resCombustivel">R$ 0,00</strong>
+            <div class="proposta-assinaturas">
+              <div class="assinatura-box">
+                <div class="assinatura-linha"></div>
+                <p>Atenciosamente,</p>
+                <strong id="prevVendedorNome">-</strong>
               </div>
-
-              <div class="resultado-item">
-                <span>Custo com pedágio</span>
-                <strong id="resPedagio">R$ 0,00</strong>
+              <div class="assinatura-box">
+                <div class="assinatura-linha"></div>
+                <p>Aceite do Cliente</p>
+                <p>Data: ___/___/___</p>
               </div>
-
-              <div class="resultado-item">
-                <span>Custo com deslocamento</span>
-                <strong id="resDeslocamento">R$ 0,00</strong>
-              </div>
-
-              <div class="resultado-item">
-                <span>Custo com mão de obra</span>
-                <strong id="resMaoDeObra">R$ 0,00</strong>
-              </div>
-
-              <div class="resultado-item">
-                <span>Funcionários considerados</span>
-                <strong id="resFuncionarios">0</strong>
-              </div>
-
-              <div class="resultado-item">
-                <span>Custo com alimentação</span>
-                <strong id="resAlimentacao">R$ 0,00</strong>
-              </div>
-
-              <div class="resultado-item">
-                <span>Custo com estadia (hotel)</span>
-                <strong id="resHotel">R$ 0,00</strong>
-              </div>
-
-              <div class="resultado-item">
-                <span>Combustível de máquinas</span>
-                <strong id="resCombustivelMaquinas">R$ 0,00</strong>
-              </div>
-
-              <div class="resultado-item">
-                <span>Encargos adicionais</span>
-                <strong id="resEncargos">R$ 0,00</strong>
-              </div>
-
-              <div class="resultado-item">
-                <span>Outros custos</span>
-                <strong id="resOutros">R$ 0,00</strong>
-              </div>
-
-              <div class="resultado-item">
-                <span>Subtotal</span>
-                <strong id="resSubtotal">R$ 0,00</strong>
-              </div>
-
-              <div class="resultado-item">
-                <span>Lucro</span>
-                <strong id="resLucro">R$ 0,00</strong>
-              </div>
-            </div>
-
-            <div class="total-box">
-              <div>
-                <span class="label">Valor total</span>
-                <strong id="resTotal">R$ 0,00</strong>
-              </div>
-              <div>
-                <span class="label">Preço por m²</span>
-                <strong id="resValorM2">R$ 0,00</strong>
-              </div>
-            </div>
-
-            <div class="proposta-rodape">
-              <p id="prevObservacoes">Observações: -</p>
-              <p><strong>Vendedor:</strong> <span id="prevVendedorNome">-</span> | <span id="prevVendedorContato">-</span> | <span id="prevVendedorEmail">-</span></p>
             </div>
           </article>
 
