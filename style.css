@@ -457,60 +457,6 @@ select {
     font-size: 1.5rem;
   }
 
-  @page {
-    size: A4;
-    margin: 12mm;
-  }
-
-  @media print {
-    body.print-proposal {
-      background: #fff;
-    }
-
-    body.print-proposal .topo,
-    body.print-proposal .tabs,
-    body.print-proposal .card:not(.resultado-card),
-    body.print-proposal .acoes,
-    body.print-proposal .status-text,
-    body.print-proposal .table-wrap,
-    body.print-proposal #toast {
-      display: none !important;
-    }
-
-    body.print-proposal .container {
-      margin: 0;
-      padding: 0;
-      max-width: none;
-    }
-
-    body.print-proposal #tabPerfil,
-    body.print-proposal .resultado-card > h2,
-    body.print-proposal .resultado-card > .acoes,
-    body.print-proposal .resultado-card > .grid {
-      display: none !important;
-    }
-
-    body.print-proposal #tabProposta,
-    body.print-proposal .tab-panel {
-      display: block !important;
-    }
-
-    body.print-proposal .resultado-card {
-      box-shadow: none;
-      border: 0;
-      padding: 0;
-      margin: 0;
-      background: #fff;
-    }
-
-    body.print-proposal .proposta-preview {
-      border: 0;
-      border-radius: 0;
-      margin: 0;
-      padding: 0;
-    }
-  }
-
   .container {
     margin-top: 18px;
     padding: 0 12px 32px;
@@ -528,6 +474,60 @@ select {
 
   .topo {
     padding: 28px 16px 30px;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  body.print-proposal {
+    background: #fff;
+  }
+
+  body.print-proposal .topo,
+  body.print-proposal .tabs,
+  body.print-proposal .card:not(.resultado-card),
+  body.print-proposal .acoes,
+  body.print-proposal .status-text,
+  body.print-proposal .table-wrap,
+  body.print-proposal #toast {
+    display: none !important;
+  }
+
+  body.print-proposal .container {
+    margin: 0;
+    padding: 0;
+    max-width: none;
+  }
+
+  body.print-proposal #tabPerfil,
+  body.print-proposal .resultado-card > h2,
+  body.print-proposal .resultado-card > .acoes,
+  body.print-proposal .resultado-card > .grid {
+    display: none !important;
+  }
+
+  body.print-proposal #tabProposta,
+  body.print-proposal .tab-panel {
+    display: block !important;
+  }
+
+  body.print-proposal .resultado-card {
+    box-shadow: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+  }
+
+  body.print-proposal .proposta-preview {
+    border: 0;
+    border-radius: 0;
+    margin: 0;
+    padding: 0;
   }
 }
 

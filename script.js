@@ -7,6 +7,8 @@ const PROPOSALS_STORAGE_KEY = "propostas_salvas_v1";
 const DRAFT_STORAGE_KEY = "proposta_rascunho_v1";
 const WORKER_MODE_AUTO = "auto";
 const WORKER_MODE_MANUAL = "manual";
+// Fallback delay to clear print mode when canceling print in browsers that may skip afterprint (e.g. some Safari/Firefox flows).
+const PRINT_CLASS_CLEANUP_DELAY_MS = 500;
 
 let logoDataUrl = "";
 let toastTimeoutId;
@@ -36,13 +38,11 @@ function formatNumber(value) {
   });
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function createUniqueId() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function readJsonStorage(key, fallback) {
@@ -220,7 +220,7 @@ function getSavedProfiles() {
   if (!legacyProfile || typeof legacyProfile !== "object") return [];
 
   const migratedProfiles = [{
-    id: String(Date.now()),
+    id: createUniqueId(),
     ...legacyProfile,
     data: new Date().toLocaleDateString("pt-BR")
   }];
@@ -274,29 +274,58 @@ function renderizarTabelaPerfis() {
   const tbody = $("tabelaPerfisBody");
   const list = getSavedProfiles();
 
+  tbody.innerHTML = "";
+
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="4">Nenhum perfil salvo.</td></tr>';
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.textContent = "Nenhum perfil salvo.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
     return;
   }
 
-  tbody.innerHTML = list
-    .map((item) => `
-      <tr>
-        <td>${escapeHtml(item.nomeVendedor || "-")}</td>
-        <td>${escapeHtml(item.empresa || "-")}</td>
-        <td>${escapeHtml(item.telefoneVendedor || item.emailVendedor || "-")}</td>
-        <td class="table-actions">
-          <button class="btn btn-table btn-secondary" data-action="editar-perfil" data-id="${escapeHtml(item.id)}">Editar</button>
-          <button class="btn btn-table btn-danger" data-action="excluir-perfil" data-id="${escapeHtml(item.id)}">Excluir</button>
-        </td>
-      </tr>
-    `)
-    .join("");
+  const fragment = document.createDocumentFragment();
+
+  list.forEach((item) => {
+    const row = document.createElement("tr");
+    const vendedor = document.createElement("td");
+    vendedor.textContent = item.nomeVendedor || "-";
+
+    const empresa = document.createElement("td");
+    empresa.textContent = item.empresa || "-";
+
+    const contato = document.createElement("td");
+    contato.textContent = item.telefoneVendedor || item.emailVendedor || "-";
+
+    const actions = document.createElement("td");
+    actions.className = "table-actions";
+
+    const btnEditar = document.createElement("button");
+    btnEditar.className = "btn btn-table btn-secondary";
+    btnEditar.dataset.action = "editar-perfil";
+    btnEditar.dataset.id = item.id;
+    btnEditar.textContent = "Editar";
+
+    const btnExcluir = document.createElement("button");
+    btnExcluir.className = "btn btn-table btn-danger";
+    btnExcluir.dataset.action = "excluir-perfil";
+    btnExcluir.dataset.id = item.id;
+    btnExcluir.textContent = "Excluir";
+
+    actions.append(btnEditar, btnExcluir);
+    row.append(vendedor, empresa, contato, actions);
+    fragment.appendChild(row);
+  });
+
+  tbody.appendChild(fragment);
 }
 
 function salvarPerfil() {
   const profile = getProfileFromForm();
   const list = getSavedProfiles();
+  const now = Date.now();
 
   if (editingProfileId) {
     const index = list.findIndex((item) => item.id === editingProfileId);
@@ -307,11 +336,12 @@ function salvarPerfil() {
       };
     }
   } else {
-    editingProfileId = String(Date.now());
+    editingProfileId = createUniqueId();
     list.unshift({
       id: editingProfileId,
       ...profile,
-      data: new Date().toLocaleDateString("pt-BR")
+      data: new Date(now).toLocaleDateString("pt-BR"),
+      timestamp: now
     });
   }
 
@@ -356,6 +386,7 @@ function limparPerfil() {
   editingProfileId = "";
   applyProfileToForm({});
   $("perfilLogo").value = "";
+  renderizarTabelaPerfis();
   atualizarTextoBotaoPerfil();
   showToast("Campos do perfil limpos.");
 }
@@ -571,24 +602,52 @@ function renderizarTabelaPropostas() {
   const tbody = $("tabelaPropostasBody");
   const list = getSavedProposals();
 
+  tbody.innerHTML = "";
+
   if (!list.length) {
-    tbody.innerHTML = '<tr><td colspan="4">Nenhuma proposta salva.</td></tr>';
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.textContent = "Nenhuma proposta salva.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
     return;
   }
 
-  tbody.innerHTML = list
-    .map((item) => `
-      <tr>
-        <td>${escapeHtml(item.titulo || "-")}</td>
-        <td>${escapeHtml(item.cliente || "-")}</td>
-        <td>${escapeHtml(item.data || "-")}</td>
-        <td class="table-actions">
-          <button class="btn btn-table btn-secondary" data-action="editar-proposta" data-id="${escapeHtml(item.id)}">Editar</button>
-          <button class="btn btn-table btn-danger" data-action="excluir-proposta" data-id="${escapeHtml(item.id)}">Excluir</button>
-        </td>
-      </tr>
-    `)
-    .join("");
+  const fragment = document.createDocumentFragment();
+
+  list.forEach((item) => {
+    const row = document.createElement("tr");
+    const titulo = document.createElement("td");
+    titulo.textContent = item.titulo || "-";
+
+    const cliente = document.createElement("td");
+    cliente.textContent = item.cliente || "-";
+
+    const data = document.createElement("td");
+    data.textContent = item.data || "-";
+
+    const actions = document.createElement("td");
+    actions.className = "table-actions";
+
+    const btnEditar = document.createElement("button");
+    btnEditar.className = "btn btn-table btn-secondary";
+    btnEditar.dataset.action = "editar-proposta";
+    btnEditar.dataset.id = item.id;
+    btnEditar.textContent = "Editar";
+
+    const btnExcluir = document.createElement("button");
+    btnExcluir.className = "btn btn-table btn-danger";
+    btnExcluir.dataset.action = "excluir-proposta";
+    btnExcluir.dataset.id = item.id;
+    btnExcluir.textContent = "Excluir";
+
+    actions.append(btnEditar, btnExcluir);
+    row.append(titulo, cliente, data, actions);
+    fragment.appendChild(row);
+  });
+
+  tbody.appendChild(fragment);
 }
 
 function salvarProposta() {
@@ -600,11 +659,12 @@ function salvarProposta() {
   }
 
   const list = getSavedProposals();
-  const now = new Date().toLocaleDateString("pt-BR");
+  const now = Date.now();
   const propostaAtualizada = {
     titulo: $("propostaTitulo").value.trim() || "Proposta sem título",
     cliente: $("cliente").value.trim() || "Cliente não informado",
-    data: now,
+    data: new Date(now).toLocaleDateString("pt-BR"),
+    timestamp: now,
     snapshot: proposalFieldsSnapshot()
   };
 
@@ -617,7 +677,7 @@ function salvarProposta() {
       };
     }
   } else {
-    editingProposalId = String(Date.now());
+    editingProposalId = createUniqueId();
     list.unshift({
       id: editingProposalId,
       ...propostaAtualizada
@@ -697,7 +757,17 @@ function salvarPropostaEmPdf() {
   }
 
   document.body.classList.add("print-proposal");
-  window.print();
+  try {
+    window.print();
+  } finally {
+    window.setTimeout(() => {
+      limparEstadoImpressao();
+    }, PRINT_CLASS_CLEANUP_DELAY_MS);
+  }
+}
+
+function limparEstadoImpressao() {
+  document.body.classList.remove("print-proposal");
 }
 
 function ativarTabs() {
@@ -872,7 +942,7 @@ $("tabelaPropostasBody").addEventListener("click", (event) => {
 });
 
 window.addEventListener("afterprint", () => {
-  document.body.classList.remove("print-proposal");
+  limparEstadoImpressao();
 });
 
 ativarTabs();
