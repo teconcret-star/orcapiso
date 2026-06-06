@@ -2097,6 +2097,8 @@ async function salvarProposta() {
     snapshot: proposalFieldsSnapshot()
   };
 
+  const wasEditing = !!editingProposalId;
+
   if (editingProposalId) {
     const index = list.findIndex((item) => item.id === editingProposalId);
     if (index < 0) {
@@ -2122,6 +2124,7 @@ async function salvarProposta() {
   }
 
   if (!saveProposals(list)) return;
+  if (wasEditing) editingProposalId = "";
   renderizarTabelaPropostas();
   renderDashboard();
   atualizarTextoBotaoProposta();
@@ -2518,7 +2521,6 @@ function bindStaticEvents() {
   $("btnLimparPerfil").addEventListener("click", limparPerfil);
   $("btnLimparUsuario").addEventListener("click", resetUserForm);
   $("btnAbrirBancoDados").addEventListener("click", alternarBancoDadosEstimativas);
-  $("btnAplicarEstimativaMercado").addEventListener("click", aplicarEstimativaMercadoPreCadastrada);
   $("btnRestaurarBancoDados").addEventListener("click", restaurarBancoDadosEstimativas);
   $("btnCalcular").addEventListener("click", () => {
     calcularOrcamento();
