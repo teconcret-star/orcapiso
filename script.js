@@ -937,6 +937,7 @@ function proposalFieldsSnapshot() {
     "equipamentosAlugadosObservacao",
     "outrosCustos",
     "lucro",
+    "impostoPercentual",
     "viagens",
     "propostaTitulo",
     "propostaNumero",
@@ -1403,6 +1404,7 @@ function calcularOrcamento() {
   const observacaoEquipamentosAlugados = $("equipamentosAlugadosObservacao").value.trim();
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
+  const impostoPercentual = toNumber($("impostoPercentual").value);
   const machineDb = getMachineDatabase();
   const funcionariosAutomaticos = calcularFuncionariosPorMetragem(metragem);
   const modoFuncionarios = getModoFuncionarios();
@@ -1449,7 +1451,9 @@ function calcularOrcamento() {
     + custoEquipamentosAlugados
     + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
-  const total = subtotal + valorLucro;
+  const totalSemImposto = subtotal + valorLucro;
+  const valorImposto = totalSemImposto * (impostoPercentual / 100);
+  const total = totalSemImposto + valorImposto;
   const valorM2 = metragem > 0 ? total / metragem : 0;
   const profile = getProfileFromForm();
 
@@ -1481,6 +1485,7 @@ function calcularOrcamento() {
   $("resEquipamentosAlugados").textContent = formatMoney(custoEquipamentosAlugados);
   $("resSubtotal").textContent = formatMoney(subtotal);
   $("resLucro").textContent = formatMoney(valorLucro);
+  $("resImposto").textContent = formatMoney(valorImposto);
   $("resTotal").textContent = formatMoney(total);
   $("resValorM2").textContent = formatMoney(valorM2);
 
@@ -1540,6 +1545,7 @@ function limparCampos() {
     "equipamentosAlugadosObservacao",
     "outrosCustos",
     "lucro",
+    "impostoPercentual",
     "propostaTitulo",
     "propostaNumero",
     "propostaValidade",
@@ -1560,6 +1566,7 @@ function limparCampos() {
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
   $("pisoTela").value = "sem_tela";
   $("equipamentosTipo").value = EQUIPAMENTOS_TIPO_PROPRIOS;
+  $("impostoPercentual").value = "1";
   $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   editingProposalId = "";
   atualizarModoFuncionarios({ preserveManualValue: false });
@@ -2158,6 +2165,11 @@ function bindStaticEvents() {
     salvarRascunhoLocal();
   });
 
+  $("impostoPercentual").addEventListener("change", () => {
+    calcularOrcamento();
+    salvarRascunhoLocal();
+  });
+
   $("btnAdicionarEquipamentoAlugado").addEventListener("click", () => {
     const list = $("equipamentosAlugadosList");
     const row = createEquipamentoAlugadoItem();
@@ -2220,6 +2232,7 @@ function bindStaticEvents() {
     "equipamentosAlugadosObservacao",
     "outrosCustos",
     "lucro",
+    "impostoPercentual",
     "propostaTitulo",
     "propostaNumero",
     "propostaValidade",
