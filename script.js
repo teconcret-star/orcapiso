@@ -323,6 +323,16 @@ function handleFirebaseConnectionError(message, error) {
   scheduleFirebaseReconnect();
 }
 
+function getUserCreatorName(user = {}) {
+  return user.createdByName || "Sistema";
+}
+
+function canDeleteUser(user, actor = currentUser) {
+  if (!isAdmin(actor) || !user) return false;
+  if (user.id === actor.id) return false;
+  return user.createdBy === actor.id;
+}
+
 function initializeFirebaseConnection() {
   if (!window.firebase?.firestore) {
     updateFirebaseStatus(false);
@@ -812,12 +822,13 @@ async function preencherEnderecosPorCep() {
 }
 
 function getUsers() {
-  return readJsonStorage(USERS_STORAGE_KEY, []);
+  return normalizeUsersForStorage(readJsonStorage(USERS_STORAGE_KEY, []));
 }
 
 function saveUsers(list) {
-  const success = writeJsonStorage(USERS_STORAGE_KEY, list);
-  if (success) syncFirestoreDoc(FIRESTORE_USERS_DOC, list);
+  const normalizedList = normalizeUsersForStorage(list);
+  const success = writeJsonStorage(USERS_STORAGE_KEY, normalizedList);
+  if (success) syncFirestoreDoc(FIRESTORE_USERS_DOC, normalizedList);
   return success;
 }
 
@@ -937,6 +948,37 @@ function requireAdminForUserManagement() {
   return false;
 }
 
+function normalizeUsersForStorage(list = []) {
+  const adminUsers = list
+    .filter((user) => user?.role === ROLE_ADMIN)
+    .sort((a, b) => toNumber(a.createdAt) - toNumber(b.createdAt));
+  const fallbackCreator = adminUsers[0] || null;
+  const usersById = new Map(list.map((user) => [user?.id, user]));
+
+  return list.map((user) => {
+    if (!user || typeof user !== "object") return user;
+
+    const nextUser = {
+      ...user,
+      active: user.role === ROLE_ADMIN ? true : Boolean(user.active)
+    };
+
+    if (!nextUser.createdByName) {
+      const creatorUser = nextUser.createdBy ? usersById.get(nextUser.createdBy) : null;
+      if (creatorUser) {
+        nextUser.createdByName = creatorUser.name || "Administrador";
+        nextUser.createdByEmail = creatorUser.email || "";
+      } else if (fallbackCreator && nextUser.id !== fallbackCreator.id) {
+        nextUser.createdBy = fallbackCreator.id;
+        nextUser.createdByName = fallbackCreator.name || "Administrador";
+        nextUser.createdByEmail = fallbackCreator.email || "";
+      }
+    }
+
+    return nextUser;
+  });
+}
+
 function getCurrentUserFromStorage() {
   return getUsers().find((item) => item.id === currentUserId) || null;
 }
@@ -997,6 +1039,9 @@ async function ensureAdminExists() {
       name: "Administrador",
       email: DEFAULT_ADMIN_USERNAME
     }),
+    createdBy: "",
+    createdByName: "Sistema",
+    createdByEmail: "",
     createdAt: now,
     updatedAt: now
   };
@@ -1611,7 +1656,7 @@ function renderUsersTable() {
   if (!users.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 5;
+    cell.colSpan = 6;
     cell.textContent = "Nenhum usuário cadastrado.";
     row.appendChild(cell);
     tbody.appendChild(row);
@@ -1625,7 +1670,8 @@ function renderUsersTable() {
       user.name || "-",
       user.email || "-",
       formatRole(user.role),
-      user.active ? "Ativo" : "Inativo"
+      user.active ? "Ativo" : "Inativo",
+      getUserCreatorName(user)
     ];
     if (!matchesFilter(rowData, query)) return;
 
@@ -1650,7 +1696,19 @@ function renderUsersTable() {
       btnAlternar.disabled = true;
     }
 
-    actions.append(btnEditar, btnAlternar);
+    const btnExcluir = document.createElement("button");
+    btnExcluir.className = "btn btn-table btn-danger";
+    btnExcluir.dataset.action = "excluir-usuario";
+    btnExcluir.dataset.id = user.id;
+    btnExcluir.textContent = "Excluir";
+    btnExcluir.disabled = !canDeleteUser(user);
+    if (btnExcluir.disabled) {
+      btnExcluir.title = user.id === currentUserId
+        ? "Você não pode excluir o próprio usuário."
+        : "Somente o administrador que cadastrou este usuário pode excluí-lo.";
+    }
+
+    actions.append(btnEditar, btnAlternar, btnExcluir);
 
     rowData.forEach((value) => {
       const cell = document.createElement("td");
@@ -1665,7 +1723,7 @@ function renderUsersTable() {
   if (!fragment.childNodes.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 5;
+    cell.colSpan = 6;
     cell.textContent = "Nenhum usuário encontrado para o filtro informado.";
     row.appendChild(cell);
     tbody.appendChild(row);
@@ -1727,11 +1785,6 @@ async function salvarUsuario(event) {
 
   const now = Date.now();
   const creatingUser = !editingUserId;
-
-  if (creatingUser && formData.role === ROLE_ADMIN) {
-    showToast("Não é permitido criar usuários com perfil de administrador.", true);
-    return;
-  }
 
   const activeValue = formData.role === ROLE_ADMIN ? true : formData.active;
 
@@ -1795,6 +1848,9 @@ async function salvarUsuario(event) {
       ...(await createPasswordCredentials(formData.password.trim())),
       mustChangePassword: true,
       profile: buildDefaultProfile({ name: formData.name, email: formData.email }),
+      createdBy: currentUserId,
+      createdByName: currentUser?.name || "Administrador",
+      createdByEmail: currentUser?.email || "",
       createdAt: now,
       updatedAt: now
     };
@@ -1833,6 +1889,54 @@ function alternarStatusUsuario(id) {
   renderUsersTable();
   renderDashboard();
   showToast(`Usuário ${targetUser.active ? "inativado" : "ativado"} com sucesso.`);
+}
+
+function excluirUsuarioPorId(id) {
+  if (!requireAdminForUserManagement()) return;
+
+  const users = getUsers();
+  const targetUser = users.find((user) => user.id === id);
+  if (!targetUser) {
+    showToast("Usuário não encontrado.", true);
+    return;
+  }
+
+  if (targetUser.id === currentUserId) {
+    showToast("Você não pode excluir o próprio usuário.", true);
+    return;
+  }
+
+  if (!canDeleteUser(targetUser)) {
+    showToast("Somente o administrador que cadastrou este usuário pode excluí-lo.", true);
+    return;
+  }
+
+  const reassignedUsers = users
+    .filter((user) => user.id !== id)
+    .map((user) => {
+      if (user.createdBy !== id) return user;
+      return {
+        ...user,
+        createdBy: currentUserId,
+        createdByName: currentUser?.name || "Administrador",
+        createdByEmail: currentUser?.email || "",
+        updatedAt: Date.now()
+      };
+    });
+
+  const nextUsers = reassignedUsers;
+  if (!countActiveAdmins(nextUsers)) {
+    showToast("Mantenha ao menos um administrador ativo.", true);
+    return;
+  }
+
+  if (!saveUsers(nextUsers)) return;
+  if (editingUserId === id) {
+    resetUserForm();
+  }
+  renderUsersTable();
+  renderDashboard();
+  showToast("Usuário excluído com sucesso.");
 }
 
 function salvarPerfil() {
@@ -2834,6 +2938,7 @@ function bindStaticEvents() {
 
     if (action === "editar-usuario") carregarUsuarioPorId(id);
     if (action === "alternar-usuario") alternarStatusUsuario(id);
+    if (action === "excluir-usuario") excluirUsuarioPorId(id);
   });
 
   window.addEventListener("afterprint", () => {
@@ -2859,6 +2964,19 @@ function bindStaticEvents() {
         handleFirebaseConnectionError("Falha ao restabelecer Firebase ao voltar para o app:", error);
       });
     }
+  });
+
+  window.addEventListener("online", () => {
+    reconnectFirebase().then((connected) => {
+      if (!connected) scheduleFirebaseReconnect();
+      if (connected && currentUserId) refreshAppFromStorage();
+    }).catch((error) => {
+      handleFirebaseConnectionError("Falha ao sincronizar dados ao voltar a conexão:", error);
+    });
+  });
+
+  window.addEventListener("offline", () => {
+    updateFirebaseStatus(false);
   });
 }
 
