@@ -931,6 +931,12 @@ function isAdmin(user = currentUser) {
   return user?.role === ROLE_ADMIN;
 }
 
+function requireAdminForUserManagement() {
+  if (isAdmin()) return true;
+  showToast("Somente administradores podem gerenciar usuários.", true);
+  return false;
+}
+
 function getCurrentUserFromStorage() {
   return getUsers().find((item) => item.id === currentUserId) || null;
 }
@@ -1670,6 +1676,8 @@ function renderUsersTable() {
 }
 
 function carregarUsuarioPorId(id) {
+  if (!requireAdminForUserManagement()) return;
+
   const user = getUsers().find((item) => item.id === id);
   if (!user) return;
 
@@ -1691,6 +1699,8 @@ function countActiveAdmins(users) {
 
 async function salvarUsuario(event) {
   event?.preventDefault();
+  if (!requireAdminForUserManagement()) return;
+
   const formData = getUserFormData();
   const users = getUsers();
 
@@ -1716,12 +1726,30 @@ async function salvarUsuario(event) {
   }
 
   const now = Date.now();
+  const creatingUser = !editingUserId;
+
+  if (creatingUser && formData.role === ROLE_ADMIN) {
+    showToast("Não é permitido criar usuários com perfil de administrador.", true);
+    return;
+  }
+
   const activeValue = formData.role === ROLE_ADMIN ? true : formData.active;
 
   if (editingUserId) {
     const index = users.findIndex((user) => user.id === editingUserId);
     if (index < 0) {
       showToast("Usuário não encontrado.", true);
+      return;
+    }
+
+    const currentRole = users[index].role;
+    if (currentRole === ROLE_ADMIN && formData.role !== ROLE_ADMIN) {
+      showToast("Administradores não podem ser convertidos para vendedor.", true);
+      return;
+    }
+
+    if (currentRole === ROLE_SELLER && formData.role === ROLE_ADMIN) {
+      showToast("Não é permitido promover vendedores para administrador.", true);
       return;
     }
 
@@ -1783,6 +1811,8 @@ async function salvarUsuario(event) {
 }
 
 function alternarStatusUsuario(id) {
+  if (!requireAdminForUserManagement()) return;
+
   const users = getUsers();
   const index = users.findIndex((user) => user.id === id);
   if (index < 0) return;
