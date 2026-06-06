@@ -133,7 +133,15 @@ function toNumber(value) {
       ? normalized.replace(/\./g, "").replace(",", ".")
       : normalized.replace(/,/g, "");
   } else if (lastComma >= 0) {
-    normalized = normalized.replace(",", ".");
+    const commasCount = (normalized.match(/,/g) || []).length;
+    normalized = commasCount > 1
+      ? normalized.replace(/,/g, "")
+      : normalized.replace(",", ".");
+  } else if (lastDot >= 0) {
+    const dotsCount = (normalized.match(/\./g) || []).length;
+    if (dotsCount > 1) {
+      normalized = normalized.replace(/\./g, "");
+    }
   }
 
   const number = parseFloat(normalized);
