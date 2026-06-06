@@ -107,6 +107,7 @@ let firebaseSyncEnabled = false;
 let firestoreUnsubscribers = [];
 let firestoreSettingsApplied = false;
 let firebaseReconnectTimeoutId = null;
+let firebaseReconnectPromise = null;
 let chartPropostasPorVendedor = null;
 let chartValorPorVendedor = null;
 let chartParticipacaoVendedor = null;
@@ -282,17 +283,25 @@ function refreshAppFromStorage() {
 }
 
 async function reconnectFirebase() {
-  const connected = initializeFirebaseConnection();
-  if (!connected) return false;
-  try {
-    await bootstrapStorageFromFirebase();
-    subscribeFirestoreChanges();
-    if (currentUserId) refreshAppFromStorage();
-    return true;
-  } catch (error) {
-    handleFirebaseConnectionError("Falha ao sincronizar dados após reconectar Firebase:", error);
-    return false;
-  }
+  if (firebaseReconnectPromise) return firebaseReconnectPromise;
+
+  firebaseReconnectPromise = (async () => {
+    const connected = initializeFirebaseConnection();
+    if (!connected) return false;
+    try {
+      await bootstrapStorageFromFirebase();
+      subscribeFirestoreChanges();
+      if (currentUserId) refreshAppFromStorage();
+      return true;
+    } catch (error) {
+      handleFirebaseConnectionError("Falha ao sincronizar dados após reconectar Firebase:", error);
+      return false;
+    } finally {
+      firebaseReconnectPromise = null;
+    }
+  })();
+
+  return firebaseReconnectPromise;
 }
 
 function scheduleFirebaseReconnect() {
@@ -1924,13 +1933,12 @@ function excluirUsuarioPorId(id) {
       };
     });
 
-  const nextUsers = reassignedUsers;
-  if (!countActiveAdmins(nextUsers)) {
+  if (!countActiveAdmins(reassignedUsers)) {
     showToast("Mantenha ao menos um administrador ativo.", true);
     return;
   }
 
-  if (!saveUsers(nextUsers)) return;
+  if (!saveUsers(reassignedUsers)) return;
   if (editingUserId === id) {
     resetUserForm();
   }
