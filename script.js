@@ -58,6 +58,7 @@ let editingUserId = "";
 let currentUserId = "";
 let currentUser = null;
 let printProposalPendingCleanup = false;
+let printCleanupRetryTimeoutId = 0;
 
 function toNumber(value) {
   const number = parseFloat(value);
@@ -1444,6 +1445,10 @@ function salvarPropostaEmPdf() {
 }
 
 function limparEstadoImpressao() {
+  if (printCleanupRetryTimeoutId) {
+    window.clearTimeout(printCleanupRetryTimeoutId);
+    printCleanupRetryTimeoutId = 0;
+  }
   printProposalPendingCleanup = false;
   document.body.classList.remove("print-proposal");
 }
@@ -1452,7 +1457,13 @@ function tentarLimparEstadoImpressao() {
   if (!printProposalPendingCleanup) return;
   if (document.visibilityState === "visible") {
     limparEstadoImpressao();
+    return;
   }
+  if (printCleanupRetryTimeoutId) return;
+  printCleanupRetryTimeoutId = window.setTimeout(() => {
+    printCleanupRetryTimeoutId = 0;
+    tentarLimparEstadoImpressao();
+  }, 400);
 }
 
 async function trocarMinhaSenha(event) {
