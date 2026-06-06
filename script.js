@@ -257,10 +257,6 @@ function removeStorageItem(key) {
   localStorage.removeItem(key);
 }
 
-function loadUsersFromStorage() {
-  return normalizeUsersForStorage(readJsonStorage(USERS_STORAGE_KEY, []));
-}
-
 function getDraftFirestoreDocId(userId = currentUserId) {
   return userId ? `${FIRESTORE_DRAFT_DOC_PREFIX}${userId}` : "";
 }
@@ -528,7 +524,6 @@ function subscribeFirestoreChanges() {
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
       usersCache = normalizeUsersForStorage(data);
-      writeJsonStorage(USERS_STORAGE_KEY, usersCache);
       if (currentUserId) {
         refreshCurrentUser();
         renderUsersTable();
@@ -621,13 +616,6 @@ async function bootstrapStorageFromFirebase() {
 
     if (users && Array.isArray(users)) {
       usersCache = normalizeUsersForStorage(users);
-      writeJsonStorage(USERS_STORAGE_KEY, usersCache);
-    } else {
-      const localUsers = loadUsersFromStorage();
-      if (localUsers.length) {
-        usersCache = localUsers;
-        syncFirestoreDoc(FIRESTORE_USERS_DOC, localUsers);
-      }
     }
 
     if (proposals && Array.isArray(proposals)) {
@@ -993,16 +981,11 @@ async function preencherEnderecosPorCep() {
 }
 
 function getUsers() {
-  if (!usersCache.length) {
-    usersCache = loadUsersFromStorage();
-  }
   return normalizeUsersForStorage(usersCache);
 }
 
 function saveUsers(list) {
   const normalizedList = normalizeUsersForStorage(list);
-  const success = writeJsonStorage(USERS_STORAGE_KEY, normalizedList);
-  if (!success) return false;
   usersCache = normalizedList;
   syncFirestoreDoc(FIRESTORE_USERS_DOC, normalizedList);
   return true;
