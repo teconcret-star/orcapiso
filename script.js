@@ -29,6 +29,28 @@ const DEFAULT_MACHINE_DATABASE = {
   percentualSimples: 30,
   percentualCorte: 20
 };
+/**
+ * Preset de referência de mercado para parâmetros por m².
+ * Unidades:
+ * - rendimento* em m²/unidade
+ * - preco* em R$
+ * - consumo* em litros/m²
+ * - percentual* em %
+ */
+const MACHINE_DATABASE_PRESETS = {
+  marketBestPractices: {
+    rendimentoFacasM2: 280,
+    precoFaca: 195,
+    rendimentoDiscoM2: 470,
+    precoDisco: 235,
+    consumoDuplaLitrosM2: 0.12,
+    consumoSimplesLitrosM2: 0.085,
+    consumoCorteLitrosM2: 0.045,
+    percentualDupla: 50,
+    percentualSimples: 30,
+    percentualCorte: 20
+  }
+};
 
 let logoDataUrl = "";
 let toastTimeoutId;
@@ -349,7 +371,11 @@ function saveMachineDatabase(data) {
 }
 
 function applyMachineDatabaseToForm() {
-  const db = getMachineDatabase();
+  applyMachineDatabaseValuesToForm(getMachineDatabase());
+}
+
+function applyMachineDatabaseValuesToForm(data) {
+  const db = normalizeMachineDatabase(data);
   $("paramRendimentoFacas").value = String(db.rendimentoFacasM2);
   $("paramPrecoFaca").value = String(db.precoFaca);
   $("paramRendimentoDisco").value = String(db.rendimentoDiscoM2);
@@ -360,6 +386,24 @@ function applyMachineDatabaseToForm() {
   $("paramPercentualMaquinaDupla").value = db.percentualDupla.toFixed(2);
   $("paramPercentualMaquinaSimples").value = db.percentualSimples.toFixed(2);
   $("paramPercentualMaquinaCorte").value = db.percentualCorte.toFixed(2);
+}
+
+function aplicarEstimativaMercadoPreCadastrada() {
+  if (!isAdmin()) {
+    showToast("Somente administradores podem aplicar estimativas pré-cadastradas.", true);
+    return;
+  }
+  const presetId = $("presetEstimativaMercado").value;
+  const preset = MACHINE_DATABASE_PRESETS[presetId];
+  if (!preset) {
+    showToast("Estimativa pré-cadastrada não encontrada.", true);
+    return;
+  }
+
+  applyMachineDatabaseValuesToForm(preset);
+  calcularOrcamento();
+  salvarRascunhoLocal();
+  showToast("Estimativa de mercado aplicada. Ajuste e salve os parâmetros se desejar.");
 }
 
 function readMachineDatabaseFromForm() {
@@ -1586,6 +1630,7 @@ function bindStaticEvents() {
   $("btnLimparPerfil").addEventListener("click", limparPerfil);
   $("btnLimparUsuario").addEventListener("click", resetUserForm);
   $("btnAbrirBancoDados").addEventListener("click", alternarBancoDadosEstimativas);
+  $("btnAplicarEstimativaMercado").addEventListener("click", aplicarEstimativaMercadoPreCadastrada);
   $("btnRestaurarBancoDados").addEventListener("click", restaurarBancoDadosEstimativas);
   $("btnCalcular").addEventListener("click", () => {
     calcularOrcamento();
