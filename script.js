@@ -21,7 +21,7 @@ const FIREBASE_CONFIG = {
   projectId: "orcapiso",
   storageBucket: "orcapiso.firebasestorage.app",
   messagingSenderId: "966600923508",
-  appId: "1:966600923508:web:a42bfF27241586535b3421",
+  appId: "1:966600923508:web:a42bff27241586535b3421",
   measurementId: "G-Z6QWZ7LWGG"
 };
 const FIRESTORE_COLLECTION = "orcamentoPiso";
