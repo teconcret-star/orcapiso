@@ -405,6 +405,8 @@ function calcularOrcamento() {
   const precoCombustivel = toNumber($("precoCombustivel").value);
   const pedagio = toNumber($("pedagio").value);
   const viagens = toNumber($("viagens").value);
+  const quantidadeVeiculosDigitada = parseInt($("quantidadeVeiculos").value, 10);
+  const quantidadeVeiculos = quantidadeVeiculosDigitada > 0 ? quantidadeVeiculosDigitada : 1;
   const valorDia = toNumber($("valorDia").value);
   const dias = toNumber($("dias").value);
   const encargos = toNumber($("encargos").value);
@@ -428,8 +430,8 @@ function calcularOrcamento() {
 
   const multiplicadorViagens = viagens > 0 ? viagens : 1;
   const distanciaTotal = distancia * multiplicadorViagens;
-  const custoCombustivel = consumo > 0 ? (distanciaTotal / consumo) * precoCombustivel : 0;
-  const custoPedagio = pedagio * multiplicadorViagens;
+  const custoCombustivel = consumo > 0 ? ((distanciaTotal / consumo) * precoCombustivel) * quantidadeVeiculos : 0;
+  const custoPedagio = pedagio * multiplicadorViagens * quantidadeVeiculos;
   const custoDeslocamento = custoCombustivel + custoPedagio;
   const custoMaoDeObra = funcionariosSelecionados * valorDia * dias;
   const custoAlimentacao = funcionariosSelecionados * alimentacaoFuncionario * dias;
@@ -499,6 +501,7 @@ function limparCampos() {
     "precoCombustivel",
     "pedagio",
     "consumoMaquinas",
+    "quantidadeVeiculos",
     "modoFuncionarios",
     "funcionarios",
     "valorDia",
@@ -524,6 +527,7 @@ function limparCampos() {
   });
 
   $("viagens").value = 1;
+  $("quantidadeVeiculos").value = 1;
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
   $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   editingProposalId = "";
@@ -550,6 +554,7 @@ function proposalFieldsSnapshot() {
     "precoCombustivel",
     "pedagio",
     "consumoMaquinas",
+    "quantidadeVeiculos",
     "modoFuncionarios",
     "funcionarios",
     "valorDia",
@@ -872,6 +877,7 @@ $("funcionarios").addEventListener("input", () => {
   "precoCombustivel",
   "pedagio",
   "consumoMaquinas",
+  "quantidadeVeiculos",
   "viagens",
   "valorDia",
   "dias",
