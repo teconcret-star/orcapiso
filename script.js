@@ -135,6 +135,15 @@ function normalizeFilterText(value) {
     .trim();
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function getFilterQuery(fieldId) {
   const field = $(fieldId);
   return normalizeFilterText(field?.value || "");
@@ -433,7 +442,7 @@ function setEquipamentosAlugadosItemsSnapshot(items) {
 
 function buildEquipamentosAlugadosOptions(selectedValue) {
   return EQUIPAMENTOS_ALUGADOS_OPCOES
-    .map((item) => `<option value="${item.value}"${item.value === selectedValue ? " selected" : ""}>${item.label}</option>`)
+    .map((item) => `<option value="${item.value}"${item.value === selectedValue ? " selected" : ""}>${escapeHtml(item.label)}</option>`)
     .join("");
 }
 
@@ -451,13 +460,13 @@ function createEquipamentoAlugadoItem(item = {}) {
     </div>
     <div class="field">
       <label>Valor da diária (R$)</label>
-      <input type="number" class="equipamento-alugado-diaria" min="0" step="0.01" placeholder="0,00" value="${diaria > 0 ? diaria : ""}" />
+      <input type="number" class="equipamento-alugado-diaria" min="0" step="0.01" placeholder="0.00" value="${diaria > 0 ? diaria : ""}" />
     </div>
     <div class="field">
       <label>Total do item</label>
       <input type="text" class="equipamento-alugado-total" value="${formatMoney(0)}" readonly />
     </div>
-    <button type="button" class="btn btn-danger btn-inline" data-action="remover-equipamento">Remover</button>
+    <button type="button" class="btn btn-danger btn-inline" data-action="remover-equipamento" aria-label="Remover item de equipamento alugado">Remover</button>
   `;
   return row;
 }
