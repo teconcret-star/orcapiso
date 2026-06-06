@@ -1,0 +1,16 @@
+{
+  "rules": {
+    // Apenas os dados da aplicação são acessíveis
+    "orcamentoPiso": {
+      // Leitura pública permitida (o app usa autenticação própria, sem Firebase Auth)
+      ".read": true,
+      // Gravação permitida a qualquer cliente (mesma política das regras Firestore)
+      ".write": true
+    },
+    // Bloqueia todo o resto por padrão
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
