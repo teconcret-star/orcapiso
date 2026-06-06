@@ -559,7 +559,7 @@ select {
 
 @page {
   size: A4;
-  margin: 12mm;
+  margin: 8mm;
 }
 
 @media print {
@@ -608,9 +608,77 @@ select {
     border-radius: 0;
     margin: 0;
     padding: 0;
+    font-size: 0.69rem;
+    break-inside: avoid;
   }
 
-   body.print-proposal .no-print {
+  body.print-proposal .proposta-cabecalho-logo {
+    min-height: 80px;
+    min-width: 80px;
+  }
+
+  body.print-proposal .logo-proposta {
+    width: 80px;
+    height: 80px;
+  }
+
+  body.print-proposal .proposta-cabecalho-empresa h3 {
+    font-size: 1.3rem;
+    margin-bottom: 2px;
+  }
+
+  body.print-proposal .proposta-cabecalho-empresa p {
+    line-height: 1.3;
+    font-size: 0.92rem;
+  }
+
+  body.print-proposal .proposta-faixa {
+    margin: 12px 0 10px;
+  }
+
+  body.print-proposal .proposta-local-data,
+  body.print-proposal .proposta-identificacao,
+  body.print-proposal .proposta-dados-cliente,
+  body.print-proposal .proposta-secao {
+    margin-bottom: 10px;
+  }
+
+  body.print-proposal .proposta-local-data p,
+  body.print-proposal .proposta-identificacao p,
+  body.print-proposal .proposta-dados-cliente p,
+  body.print-proposal .proposta-condicoes p {
+    margin: 0 0 4px;
+    line-height: 1.25;
+  }
+
+  body.print-proposal .proposta-secao h4 {
+    margin: 0 0 6px;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+  }
+
+  body.print-proposal .proposta-secao p {
+    line-height: 1.3;
+  }
+
+  body.print-proposal .proposal-table th,
+  body.print-proposal .proposal-table td {
+    padding: 6px 4px;
+    font-size: 0.9rem;
+  }
+
+  body.print-proposal .proposta-assinaturas {
+    margin-top: 10px;
+    padding-top: 12px;
+    gap: 24px;
+  }
+
+  body.print-proposal .assinatura-box p,
+  body.print-proposal .assinatura-box strong {
+    margin-top: 3px;
+  }
+
+  body.print-proposal .no-print {
     display: none !important;
   }
 }
