@@ -1197,14 +1197,31 @@ function renderDashboardCharts(labels, propostas, valores) {
 
   if (chartParticipacaoVendedor) {
     chartParticipacaoVendedor.destroy();
+    chartParticipacaoVendedor = null;
   }
   const totalGlobal = valores.reduce((a, b) => a + b, 0);
+  if (totalGlobal <= 0) {
+    canvasParticipacao.parentElement.dataset.noData = "true";
+    canvasParticipacao.style.display = "none";
+    let msg = canvasParticipacao.parentElement.querySelector(".chart-no-data");
+    if (!msg) {
+      msg = document.createElement("p");
+      msg.className = "chart-no-data";
+      msg.textContent = "Nenhum valor registrado para exibir participação.";
+      canvasParticipacao.parentElement.appendChild(msg);
+    }
+    msg.hidden = false;
+    return;
+  }
+  canvasParticipacao.style.display = "";
+  const noDataMsg = canvasParticipacao.parentElement.querySelector(".chart-no-data");
+  if (noDataMsg) noDataMsg.hidden = true;
   chartParticipacaoVendedor = new Chart(canvasParticipacao, {
     type: "doughnut",
     data: {
       labels,
       datasets: [{
-        data: totalGlobal > 0 ? valores : labels.map(() => 1),
+        data: valores,
         backgroundColor: bgColors
       }]
     },
@@ -1215,7 +1232,6 @@ function renderDashboardCharts(labels, propostas, valores) {
         tooltip: {
           callbacks: {
             label: (ctx) => {
-              if (totalGlobal <= 0) return ctx.label;
               const pct = ((ctx.parsed / totalGlobal) * 100).toFixed(1);
               return `${ctx.label}: ${pct}%`;
             }

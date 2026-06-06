@@ -125,6 +125,13 @@ body.auth-view .auth-card h2 {
   text-align: center;
 }
 
+.chart-no-data {
+  text-align: center;
+  color: var(--text-muted, #64748b);
+  font-size: 0.875rem;
+  padding: 24px 0;
+}
+
 .auth-description {
   margin-bottom: 18px;
 }
