@@ -2198,6 +2198,8 @@ function atualizarInterfaceAutenticada() {
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
   carregarRascunhoLocal();
+  atualizarCampoPisoTela({ preserveValueWhenDisabled: true });
+  atualizarCampoCuraQuimica({ preserveValueWhenDisabled: true });
   if (!$("propostaTextoPadrao").value.trim()) {
     $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   }
