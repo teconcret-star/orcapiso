@@ -28,6 +28,11 @@ const FIRESTORE_COLLECTION = "orcamentoPiso";
 const FIRESTORE_USERS_DOC = "users";
 const FIRESTORE_PROPOSALS_DOC = "proposals";
 const FIRESTORE_MACHINE_DB_DOC = "machineDatabase";
+const FIRESTORE_SETTINGS = {
+  experimentalAutoDetectLongPolling: true,
+  useFetchStreams: false
+};
+const FIREBASE_RECONNECT_DELAY_MS = 3000;
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const IFRAME_CLEANUP_DELAY_MS = 600;
 const IFRAME_PRINT_FALLBACK_TIMEOUT_MS = 2000;
@@ -100,6 +105,8 @@ let printCleanupRetryTimeoutId = null;
 let firestoreDb = null;
 let firebaseSyncEnabled = false;
 let firestoreUnsubscribers = [];
+let firestoreSettingsApplied = false;
+let firebaseReconnectTimeoutId = null;
 let chartPropostasPorVendedor = null;
 let chartValorPorVendedor = null;
 let chartParticipacaoVendedor = null;
@@ -253,8 +260,71 @@ function updateFirebaseStatus(connected) {
     : "Sem conexão com o servidor — dados salvos apenas neste aparelho";
 }
 
+function clearFirestoreListeners() {
+  firestoreUnsubscribers.forEach((unsub) => unsub());
+  firestoreUnsubscribers = [];
+}
+
+function clearFirebaseReconnectTimeout() {
+  if (firebaseReconnectTimeoutId == null) return;
+  window.clearTimeout(firebaseReconnectTimeoutId);
+  firebaseReconnectTimeoutId = null;
+}
+
+function refreshAppFromStorage() {
+  refreshCurrentUser();
+  renderUsersTable();
+  updateSessionInfo();
+  updateAppVisibility();
+  renderizarTabelaPropostas();
+  renderDashboard();
+  applyMachineDatabaseToForm();
+}
+
+async function reconnectFirebase() {
+  const connected = initializeFirebaseConnection();
+  if (!connected) return false;
+  try {
+    await bootstrapStorageFromFirebase();
+    subscribeFirestoreChanges();
+    if (currentUserId) refreshAppFromStorage();
+    return true;
+  } catch (error) {
+    handleFirebaseConnectionError("Falha ao sincronizar dados após reconectar Firebase:", error);
+    return false;
+  }
+}
+
+function scheduleFirebaseReconnect() {
+  if (firebaseReconnectTimeoutId != null) return;
+  if (!window.firebase?.firestore) {
+    updateFirebaseStatus(false);
+    return;
+  }
+  updateFirebaseStatus(false);
+  firebaseReconnectTimeoutId = window.setTimeout(async () => {
+    firebaseReconnectTimeoutId = null;
+    try {
+      const connected = await reconnectFirebase();
+      if (!connected) scheduleFirebaseReconnect();
+    } catch (error) {
+      handleFirebaseConnectionError("Falha ao tentar reconectar Firebase automaticamente:", error);
+      scheduleFirebaseReconnect();
+    }
+  }, FIREBASE_RECONNECT_DELAY_MS);
+}
+
+function handleFirebaseConnectionError(message, error) {
+  console.error(message, error);
+  firestoreDb = null;
+  firebaseSyncEnabled = false;
+  clearFirestoreListeners();
+  updateFirebaseStatus(false);
+  scheduleFirebaseReconnect();
+}
+
 function initializeFirebaseConnection() {
-  if (!window.firebase) {
+  if (!window.firebase?.firestore) {
     updateFirebaseStatus(false);
     return false;
   }
@@ -264,14 +334,16 @@ function initializeFirebaseConnection() {
       window.firebase.initializeApp(FIREBASE_CONFIG);
     }
     firestoreDb = window.firebase.firestore();
+    if (!firestoreSettingsApplied) {
+      firestoreDb.settings(FIRESTORE_SETTINGS);
+      firestoreSettingsApplied = true;
+    }
     firebaseSyncEnabled = true;
+    clearFirebaseReconnectTimeout();
     updateFirebaseStatus(true);
     return true;
   } catch (error) {
-    console.error("Falha ao inicializar Firebase:", error);
-    firestoreDb = null;
-    firebaseSyncEnabled = false;
-    updateFirebaseStatus(false);
+    handleFirebaseConnectionError("Falha ao inicializar Firebase:", error);
     return false;
   }
 }
@@ -288,23 +360,24 @@ async function readFirestoreDoc(docId, fallback) {
     const snap = await ref.get();
     return snap.exists ? (snap.data()?.data ?? fallback) : fallback;
   } catch (error) {
-    console.error(`Falha ao ler ${docId}:`, error);
+    handleFirebaseConnectionError(`Falha ao ler ${docId}:`, error);
     return fallback;
   }
 }
 
 function syncFirestoreDoc(docId, value) {
   const ref = getFirestoreDoc(docId);
-  if (!ref) return;
+  if (!ref) {
+    scheduleFirebaseReconnect();
+    return;
+  }
   ref.set({ data: value }).catch((error) => {
-    console.error(`Falha ao sincronizar ${docId}:`, error);
+    handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
   });
 }
 
 function subscribeFirestoreChanges() {
-  // Unsubscribe any previous listeners to avoid duplicates
-  firestoreUnsubscribers.forEach((unsub) => unsub());
-  firestoreUnsubscribers = [];
+  clearFirestoreListeners();
 
   if (!firebaseSyncEnabled || !firestoreDb) return;
 
@@ -320,10 +393,10 @@ function subscribeFirestoreChanges() {
         refreshCurrentUser();
         renderUsersTable();
         updateSessionInfo();
+        updateAppVisibility();
       }
     }, (error) => {
-      console.error("Erro ao escutar usuários:", error);
-      updateFirebaseStatus(false);
+      handleFirebaseConnectionError("Erro ao escutar usuários:", error);
     })
   );
 
@@ -338,8 +411,7 @@ function subscribeFirestoreChanges() {
         renderDashboard();
       }
     }, (error) => {
-      console.error("Erro ao escutar propostas:", error);
-      updateFirebaseStatus(false);
+      handleFirebaseConnectionError("Erro ao escutar propostas:", error);
     })
   );
 
@@ -353,8 +425,7 @@ function subscribeFirestoreChanges() {
         applyMachineDatabaseToForm();
       }
     }, (error) => {
-      console.error("Erro ao escutar banco de máquinas:", error);
-      updateFirebaseStatus(false);
+      handleFirebaseConnectionError("Erro ao escutar banco de máquinas:", error);
     })
   );
 }
@@ -2743,13 +2814,19 @@ function bindStaticEvents() {
   });
   document.addEventListener("visibilitychange", () => {
     tentarLimparEstadoImpressao();
-    if (!document.hidden && firebaseSyncEnabled && currentUserId) {
-      bootstrapStorageFromFirebase().then(() => {
-        refreshCurrentUser();
-        renderUsersTable();
-        renderizarTabelaPropostas();
-        renderDashboard();
-        applyMachineDatabaseToForm();
+    if (!document.hidden) {
+      if (firebaseSyncEnabled && firestoreDb) {
+        bootstrapStorageFromFirebase().then(() => {
+          if (currentUserId) refreshAppFromStorage();
+        }).catch((error) => {
+          handleFirebaseConnectionError("Falha ao atualizar dados do Firebase ao voltar para o app:", error);
+        });
+        return;
+      }
+      reconnectFirebase().then((connected) => {
+        if (!connected) scheduleFirebaseReconnect();
+      }).catch((error) => {
+        handleFirebaseConnectionError("Falha ao restabelecer Firebase ao voltar para o app:", error);
       });
     }
   });
