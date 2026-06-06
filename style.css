@@ -59,6 +59,62 @@ body {
   padding: 0 16px 40px;
 }
 
+.auth-card {
+  overflow: hidden;
+}
+
+.auth-grid,
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.auth-description {
+  margin-bottom: 18px;
+}
+
+.auth-form {
+  align-items: end;
+}
+
+.auth-tip,
+.session-card {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef8f6 100%);
+}
+
+.auth-tip {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.auth-tip h3,
+.auth-tip p {
+  margin-top: 0;
+}
+
+.session-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.session-label {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.session-actions {
+  display: flex;
+  gap: 12px;
+}
+
 .tabs {
   display: flex;
   gap: 10px;
@@ -122,6 +178,22 @@ body {
   grid-column: 1 / -1;
 }
 
+.field-checkbox {
+  justify-content: center;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+.checkbox-label input {
+  width: 18px;
+  min-height: auto;
+}
+
 label {
   margin-bottom: 8px;
   font-weight: bold;
@@ -133,6 +205,18 @@ label {
   margin-bottom: 0;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 input,
@@ -506,6 +590,8 @@ select {
 
 @media (max-width: 768px) {
   .grid,
+  .auth-grid,
+  .dashboard-grid,
   .resultado-grid,
   .proposta-assinaturas {
     grid-template-columns: 1fr;
@@ -514,7 +600,8 @@ select {
   .tabs,
   .acoes,
   .field-actions-inline,
-  .proposta-cabecalho {
+  .proposta-cabecalho,
+  .session-info {
     flex-direction: column;
     align-items: stretch;
   }
