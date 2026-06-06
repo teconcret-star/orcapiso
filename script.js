@@ -262,10 +262,14 @@ function getDraftFirestoreDocId(userId = currentUserId) {
 }
 
 function toTimestampMillis(value) {
-  if (typeof value?.toMillis === "function") {
+  if (value?.toMillis) {
     return value.toMillis();
   }
   return toNumber(value);
+}
+
+function getFirestoreServerTimestampValue() {
+  return window.firebase?.firestore?.FieldValue?.serverTimestamp?.() || null;
 }
 
 function normalizeDraftPayload(value) {
@@ -471,6 +475,11 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
     scheduleFirebaseReconnect();
     return;
   }
+  const serverTimestamp = getFirestoreServerTimestampValue();
+  if (!serverTimestamp) {
+    scheduleFirebaseReconnect();
+    return;
+  }
   ref.set({
     data: {
       updatedAt: normalized.updatedAtClient,
@@ -478,7 +487,7 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
       pendingSync: false,
       snapshot: normalized.snapshot
     },
-    updatedAtServer: window.firebase?.firestore?.FieldValue?.serverTimestamp?.() || normalized.updatedAtClient
+    updatedAtServer: serverTimestamp
   }).catch((error) => {
     handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
   });
