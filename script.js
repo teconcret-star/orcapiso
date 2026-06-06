@@ -29,6 +29,8 @@ const FIRESTORE_USERS_DOC = "users";
 const FIRESTORE_PROPOSALS_DOC = "proposals";
 const FIRESTORE_MACHINE_DB_DOC = "machineDatabase";
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
+const IFRAME_CLEANUP_DELAY_MS = 600;
+const IFRAME_PRINT_FALLBACK_TIMEOUT_MS = 2000;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
 const DEFAULT_MACHINE_DATABASE = {
@@ -802,10 +804,10 @@ function renderizarTabelaPropostas() {
   const list = getVisibleProposals();
   const showOwner = isAdmin();
   const query = getFilterQuery("filtroTabelaPropostas");
-  const filteredList = list.filter((item) => matchesFilter(
-    [item.titulo, item.cliente, item.data, item.ownerName, item.ownerEmail],
-    query
-  ));
+  const filteredList = list.filter((item) => {
+    const rowData = [item.titulo, item.cliente, item.data, item.ownerName, item.ownerEmail];
+    return matchesFilter(rowData, query);
+  });
 
   $("colunaPropostaVendedor").hidden = !showOwner;
   $("propostasTituloSecao").textContent = showOwner ? "Todas as propostas geradas" : "Minhas propostas salvas";
@@ -1650,16 +1652,23 @@ async function imprimirSomenteProposta() {
     return false;
   }
 
+  let iframeRemoved = false;
+  let cleanupTimerId = null;
   const removeIframe = () => {
+    if (iframeRemoved) return;
+    iframeRemoved = true;
+    if (cleanupTimerId !== null) {
+      window.clearTimeout(cleanupTimerId);
+    }
     window.setTimeout(() => {
       iframe.remove();
-    }, 600);
+    }, IFRAME_CLEANUP_DELAY_MS);
   };
 
   printWindow.addEventListener("afterprint", removeIframe, { once: true });
   printWindow.focus();
   printWindow.print();
-  window.setTimeout(removeIframe, 2000);
+  cleanupTimerId = window.setTimeout(removeIframe, IFRAME_PRINT_FALLBACK_TIMEOUT_MS);
   return true;
 }
 
@@ -1670,8 +1679,8 @@ async function salvarPropostaEmPdf() {
     return;
   }
 
-  const printedOnlyProposal = await imprimirSomenteProposta();
-  if (printedOnlyProposal) return;
+  const openedPrintDialog = await imprimirSomenteProposta();
+  if (openedPrintDialog) return;
 
   printProposalPendingCleanup = true;
   document.body.classList.add("print-proposal");
