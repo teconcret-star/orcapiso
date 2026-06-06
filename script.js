@@ -266,7 +266,7 @@ function clearFirestoreListeners() {
 }
 
 function clearFirebaseReconnectTimeout() {
-  if (firebaseReconnectTimeoutId === null) return;
+  if (firebaseReconnectTimeoutId == null) return;
   window.clearTimeout(firebaseReconnectTimeoutId);
   firebaseReconnectTimeoutId = null;
 }
@@ -296,7 +296,7 @@ async function reconnectFirebase() {
 }
 
 function scheduleFirebaseReconnect() {
-  if (firebaseReconnectTimeoutId !== null) return;
+  if (firebaseReconnectTimeoutId != null) return;
   if (!window.firebase?.firestore) {
     updateFirebaseStatus(false);
     return;
