@@ -145,6 +145,11 @@ function formatNumber(value) {
   });
 }
 
+function getCssVarColor(name, fallback) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 function formatDate(value = new Date()) {
   return new Date(value).toLocaleDateString("pt-BR");
 }
@@ -1316,9 +1321,13 @@ function renderDashboardCharts(labels, propostas, valores, statusSummary = {}) {
 
   const statusOrder = [PROPOSAL_STATUS_EM_ANDAMENTO, PROPOSAL_STATUS_PERDIDA, PROPOSAL_STATUS_FECHADA];
   const statusLabels = statusOrder.map((status) => PROPOSAL_STATUS_META[status].label);
-  const statusQuantidades = statusOrder.map((status) => toNumber(statusSummary[status]?.count));
+  const statusQuantidades = statusOrder.map((status) => statusSummary[status]?.count || 0);
   const statusValores = statusOrder.map((status) => toNumber(statusSummary[status]?.value));
-  const statusColors = ["#facc15", "#f87171", "#4ade80"];
+  const statusColors = [
+    getCssVarColor("--status-em-andamento", "#facc15"),
+    getCssVarColor("--status-perdida", "#f87171"),
+    getCssVarColor("--status-fechada", "#4ade80")
+  ];
 
   if (canvasPropostasStatus) {
     if (chartPropostasPorStatus) {

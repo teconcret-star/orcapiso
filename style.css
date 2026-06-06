@@ -12,6 +12,10 @@
   --success: #16a34a;
   --warning: #ca8a04;
   --danger: #dc2626;
+  --status-em-andamento: #facc15;
+  --status-perdida: #f87171;
+  --status-fechada: #4ade80;
+  --mobile-tabs-height: 112px;
   --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
   --shadow-soft: 0 18px 40px rgba(15, 23, 42, 0.1);
   --radius: 16px;
@@ -133,17 +137,17 @@ body.auth-view .auth-card h2 {
 }
 
 .status-card-em_andamento {
-  border-color: #facc15;
+  border-color: var(--status-em-andamento);
   background: #fffbeb;
 }
 
 .status-card-perdida {
-  border-color: #f87171;
+  border-color: var(--status-perdida);
   background: #fef2f2;
 }
 
 .status-card-fechada {
-  border-color: #4ade80;
+  border-color: var(--status-fechada);
   background: #f0fdf4;
 }
 
@@ -771,7 +775,7 @@ select {
   }
 
   .app {
-    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--mobile-tabs-height) + env(safe-area-inset-bottom, 0px));
   }
 
   .tabs {
