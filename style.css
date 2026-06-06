@@ -111,6 +111,42 @@ body.auth-view .auth-card h2 {
   margin-top: 8px;
 }
 
+.dashboard-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.status-card {
+  border-width: 2px;
+}
+
+.status-card strong {
+  display: block;
+}
+
+.status-card small {
+  display: block;
+  margin-top: 8px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.status-card-em_andamento {
+  border-color: #facc15;
+  background: #fffbeb;
+}
+
+.status-card-perdida {
+  border-color: #f87171;
+  background: #fef2f2;
+}
+
+.status-card-fechada {
+  border-color: #4ade80;
+  background: #f0fdf4;
+}
+
 .chart-container {
   background: var(--bg-card, #fff);
   border: 1px solid var(--border, #e2e8f0);
@@ -726,13 +762,44 @@ select {
     grid-template-columns: 1fr;
   }
 
-  .tabs,
   .acoes,
   .field-actions-inline,
   .proposta-cabecalho,
   .session-info {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .app {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    margin: 0;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: rgba(255, 255, 255, 0.98);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -10px 24px rgba(15, 23, 42, 0.12);
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabs::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .tabs::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
   }
 
   .proposta-cabecalho-empresa {
@@ -767,9 +834,15 @@ select {
     border-radius: 18px;
   }
 
-  .btn,
-  .tab-btn {
+  .btn {
     width: 100%;
+  }
+
+  .tab-btn {
+    width: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    margin: 0;
   }
 
   .topo {

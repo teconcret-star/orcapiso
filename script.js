@@ -109,6 +109,8 @@ let firebaseSyncEnabled = false;
 let chartPropostasPorVendedor = null;
 let chartValorPorVendedor = null;
 let chartParticipacaoVendedor = null;
+let chartPropostasPorStatus = null;
+let chartValorPorStatus = null;
 
 function toNumber(value) {
   const number = parseFloat(value);
@@ -1112,6 +1114,17 @@ function renderDashboard() {
   const users = getUsers().map(mergeUserProfile);
   const sellers = users.filter((user) => user.role === ROLE_SELLER);
   const proposals = getSavedProposals();
+  const statusSummary = {
+    [PROPOSAL_STATUS_EM_ANDAMENTO]: { count: 0, value: 0 },
+    [PROPOSAL_STATUS_PERDIDA]: { count: 0, value: 0 },
+    [PROPOSAL_STATUS_FECHADA]: { count: 0, value: 0 }
+  };
+  proposals.forEach((item) => {
+    const normalizedStatus = normalizeProposalStatus(item.status || item.snapshot?.propostaStatus);
+    if (!statusSummary[normalizedStatus]) return;
+    statusSummary[normalizedStatus].count += 1;
+    statusSummary[normalizedStatus].value += toNumber(item.total);
+  });
   const tbody = $("tabelaDashboardBody");
   const query = getFilterQuery("filtroTabelaDashboard");
 
@@ -1121,6 +1134,12 @@ function renderDashboard() {
   $("dashboardValorGlobal").textContent = formatMoney(
     proposals.reduce((acc, item) => acc + toNumber(item.total), 0)
   );
+  $("dashboardStatusEmAndamentoQtd").textContent = `${statusSummary[PROPOSAL_STATUS_EM_ANDAMENTO].count} propostas`;
+  $("dashboardStatusEmAndamentoValor").textContent = formatMoney(statusSummary[PROPOSAL_STATUS_EM_ANDAMENTO].value);
+  $("dashboardStatusPerdidaQtd").textContent = `${statusSummary[PROPOSAL_STATUS_PERDIDA].count} propostas`;
+  $("dashboardStatusPerdidaValor").textContent = formatMoney(statusSummary[PROPOSAL_STATUS_PERDIDA].value);
+  $("dashboardStatusFechadaQtd").textContent = `${statusSummary[PROPOSAL_STATUS_FECHADA].count} propostas`;
+  $("dashboardStatusFechadaValor").textContent = formatMoney(statusSummary[PROPOSAL_STATUS_FECHADA].value);
 
   tbody.innerHTML = "";
 
@@ -1131,7 +1150,7 @@ function renderDashboard() {
     cell.textContent = "Nenhum vendedor cadastrado.";
     row.appendChild(cell);
     tbody.appendChild(row);
-    renderDashboardCharts([], [], []);
+    renderDashboardCharts([], [], [], statusSummary);
     return;
   }
 
@@ -1179,10 +1198,10 @@ function renderDashboard() {
     tbody.appendChild(fragment);
   }
 
-  renderDashboardCharts(chartLabels, chartPropostas, chartValores);
+  renderDashboardCharts(chartLabels, chartPropostas, chartValores, statusSummary);
 }
 
-function renderDashboardCharts(labels, propostas, valores) {
+function renderDashboardCharts(labels, propostas, valores, statusSummary = {}) {
   if (typeof Chart === "undefined") return;
 
   const CHART_COLORS = [
@@ -1193,6 +1212,8 @@ function renderDashboardCharts(labels, propostas, valores) {
   const canvasPropostas = $("chartPropostasPorVendedor");
   const canvasValor = $("chartValorPorVendedor");
   const canvasParticipacao = $("chartParticipacaoVendedor");
+  const canvasPropostasStatus = $("chartPropostasPorStatus");
+  const canvasValorStatus = $("chartValorPorStatus");
 
   if (!canvasPropostas || !canvasValor || !canvasParticipacao) return;
 
@@ -1263,35 +1284,94 @@ function renderDashboardCharts(labels, propostas, valores) {
       canvasParticipacao.parentElement.appendChild(msg);
     }
     msg.hidden = false;
-    return;
-  }
-  canvasParticipacao.style.display = "";
-  const noDataMsg = canvasParticipacao.parentElement.querySelector(".chart-no-data");
-  if (noDataMsg) noDataMsg.hidden = true;
-  chartParticipacaoVendedor = new Chart(canvasParticipacao, {
-    type: "doughnut",
-    data: {
-      labels,
-      datasets: [{
-        data: valores,
-        backgroundColor: bgColors
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { position: "bottom" },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => {
-              const pct = ((ctx.parsed / totalGlobal) * 100).toFixed(1);
-              return `${ctx.label}: ${pct}%`;
+  } else {
+    canvasParticipacao.style.display = "";
+    const noDataMsg = canvasParticipacao.parentElement.querySelector(".chart-no-data");
+    if (noDataMsg) noDataMsg.hidden = true;
+    chartParticipacaoVendedor = new Chart(canvasParticipacao, {
+      type: "doughnut",
+      data: {
+        labels,
+        datasets: [{
+          data: valores,
+          backgroundColor: bgColors
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const pct = ((ctx.parsed / totalGlobal) * 100).toFixed(1);
+                return `${ctx.label}: ${pct}%`;
+              }
             }
           }
         }
       }
+    });
+  }
+
+  const statusOrder = [PROPOSAL_STATUS_EM_ANDAMENTO, PROPOSAL_STATUS_PERDIDA, PROPOSAL_STATUS_FECHADA];
+  const statusLabels = statusOrder.map((status) => PROPOSAL_STATUS_META[status].label);
+  const statusQuantidades = statusOrder.map((status) => toNumber(statusSummary[status]?.count));
+  const statusValores = statusOrder.map((status) => toNumber(statusSummary[status]?.value));
+  const statusColors = ["#facc15", "#f87171", "#4ade80"];
+
+  if (canvasPropostasStatus) {
+    if (chartPropostasPorStatus) {
+      chartPropostasPorStatus.destroy();
     }
-  });
+    chartPropostasPorStatus = new Chart(canvasPropostasStatus, {
+      type: "bar",
+      data: {
+        labels: statusLabels,
+        datasets: [{
+          label: "Quantidade",
+          data: statusQuantidades,
+          backgroundColor: statusColors,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  }
+
+  if (canvasValorStatus) {
+    if (chartValorPorStatus) {
+      chartValorPorStatus.destroy();
+    }
+    chartValorPorStatus = new Chart(canvasValorStatus, {
+      type: "bar",
+      data: {
+        labels: statusLabels,
+        datasets: [{
+          label: "Valor (R$)",
+          data: statusValores,
+          backgroundColor: statusColors,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (v) => `R$ ${formatNumber(v)}`
+            }
+          }
+        }
+      }
+    });
+  }
 }
 
 function getUserFormData() {

@@ -826,6 +826,27 @@
           </section>
 
           <section class="card">
+            <h2>Resumo por status das propostas</h2>
+            <div class="dashboard-status-grid">
+              <div class="resultado-item status-card status-card-em_andamento">
+                <span>Em andamento</span>
+                <strong id="dashboardStatusEmAndamentoQtd">0 propostas</strong>
+                <small id="dashboardStatusEmAndamentoValor">R$ 0,00</small>
+              </div>
+              <div class="resultado-item status-card status-card-perdida">
+                <span>Perdidas</span>
+                <strong id="dashboardStatusPerdidaQtd">0 propostas</strong>
+                <small id="dashboardStatusPerdidaValor">R$ 0,00</small>
+              </div>
+              <div class="resultado-item status-card status-card-fechada">
+                <span>Fechadas</span>
+                <strong id="dashboardStatusFechadaQtd">0 propostas</strong>
+                <small id="dashboardStatusFechadaValor">R$ 0,00</small>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
             <h2>Resultado por vendedor</h2>
             <div class="table-wrap table-scroll">
               <div class="field">
@@ -866,6 +887,14 @@
               <div class="chart-container">
                 <h3>Participação no valor total (%)</h3>
                 <canvas id="chartParticipacaoVendedor"></canvas>
+              </div>
+              <div class="chart-container">
+                <h3>Quantidade por status</h3>
+                <canvas id="chartPropostasPorStatus"></canvas>
+              </div>
+              <div class="chart-container">
+                <h3>Valor por status (R$)</h3>
+                <canvas id="chartValorPorStatus"></canvas>
               </div>
             </div>
           </section>
