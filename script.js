@@ -99,6 +99,7 @@ let printProposalPendingCleanup = false;
 let printCleanupRetryTimeoutId = null;
 let firestoreDb = null;
 let firebaseSyncEnabled = false;
+let firestoreUnsubscribers = [];
 let chartPropostasPorVendedor = null;
 let chartValorPorVendedor = null;
 let chartParticipacaoVendedor = null;
@@ -301,51 +302,61 @@ function syncFirestoreDoc(docId, value) {
 }
 
 function subscribeFirestoreChanges() {
+  // Unsubscribe any previous listeners to avoid duplicates
+  firestoreUnsubscribers.forEach((unsub) => unsub());
+  firestoreUnsubscribers = [];
+
   if (!firebaseSyncEnabled || !firestoreDb) return;
 
   const col = firestoreDb.collection(FIRESTORE_COLLECTION);
 
-  col.doc(FIRESTORE_USERS_DOC).onSnapshot((snap) => {
-    if (!snap.exists) return;
-    const data = snap.data()?.data;
-    if (!Array.isArray(data)) return;
-    writeJsonStorage(USERS_STORAGE_KEY, data);
-    if (currentUserId) {
-      refreshCurrentUser();
-      renderUsersTable();
-      updateSessionInfo();
-    }
-  }, (error) => {
-    console.error("Erro ao escutar usuários:", error);
-    updateFirebaseStatus(false);
-  });
+  firestoreUnsubscribers.push(
+    col.doc(FIRESTORE_USERS_DOC).onSnapshot((snap) => {
+      if (!snap.exists) return;
+      const data = snap.data()?.data;
+      if (!Array.isArray(data)) return;
+      writeJsonStorage(USERS_STORAGE_KEY, data);
+      if (currentUserId) {
+        refreshCurrentUser();
+        renderUsersTable();
+        updateSessionInfo();
+      }
+    }, (error) => {
+      console.error("Erro ao escutar usuários:", error);
+      updateFirebaseStatus(false);
+    })
+  );
 
-  col.doc(FIRESTORE_PROPOSALS_DOC).onSnapshot((snap) => {
-    if (!snap.exists) return;
-    const data = snap.data()?.data;
-    if (!Array.isArray(data)) return;
-    writeJsonStorage(PROPOSALS_STORAGE_KEY, data);
-    if (currentUserId) {
-      renderizarTabelaPropostas();
-      renderDashboard();
-    }
-  }, (error) => {
-    console.error("Erro ao escutar propostas:", error);
-    updateFirebaseStatus(false);
-  });
+  firestoreUnsubscribers.push(
+    col.doc(FIRESTORE_PROPOSALS_DOC).onSnapshot((snap) => {
+      if (!snap.exists) return;
+      const data = snap.data()?.data;
+      if (!Array.isArray(data)) return;
+      writeJsonStorage(PROPOSALS_STORAGE_KEY, data);
+      if (currentUserId) {
+        renderizarTabelaPropostas();
+        renderDashboard();
+      }
+    }, (error) => {
+      console.error("Erro ao escutar propostas:", error);
+      updateFirebaseStatus(false);
+    })
+  );
 
-  col.doc(FIRESTORE_MACHINE_DB_DOC).onSnapshot((snap) => {
-    if (!snap.exists) return;
-    const data = snap.data()?.data;
-    if (!data || typeof data !== "object" || Array.isArray(data)) return;
-    writeJsonStorage(MACHINE_DB_STORAGE_KEY, data);
-    if (currentUserId) {
-      applyMachineDatabaseToForm();
-    }
-  }, (error) => {
-    console.error("Erro ao escutar banco de máquinas:", error);
-    updateFirebaseStatus(false);
-  });
+  firestoreUnsubscribers.push(
+    col.doc(FIRESTORE_MACHINE_DB_DOC).onSnapshot((snap) => {
+      if (!snap.exists) return;
+      const data = snap.data()?.data;
+      if (!data || typeof data !== "object" || Array.isArray(data)) return;
+      writeJsonStorage(MACHINE_DB_STORAGE_KEY, data);
+      if (currentUserId) {
+        applyMachineDatabaseToForm();
+      }
+    }, (error) => {
+      console.error("Erro ao escutar banco de máquinas:", error);
+      updateFirebaseStatus(false);
+    })
+  );
 }
 
 async function bootstrapStorageFromFirebase() {
@@ -2732,13 +2743,11 @@ function bindStaticEvents() {
     tentarLimparEstadoImpressao();
     if (!document.hidden && firebaseSyncEnabled && currentUserId) {
       bootstrapStorageFromFirebase().then(() => {
-        if (currentUserId) {
-          refreshCurrentUser();
-          renderUsersTable();
-          renderizarTabelaPropostas();
-          renderDashboard();
-          applyMachineDatabaseToForm();
-        }
+        refreshCurrentUser();
+        renderUsersTable();
+        renderizarTabelaPropostas();
+        renderDashboard();
+        applyMachineDatabaseToForm();
       });
     }
   });
