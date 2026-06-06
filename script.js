@@ -28,6 +28,7 @@ const FIRESTORE_COLLECTION = "orcamentoPiso";
 const FIRESTORE_USERS_DOC = "users";
 const FIRESTORE_PROPOSALS_DOC = "proposals";
 const FIRESTORE_MACHINE_DB_DOC = "machineDatabase";
+const FIRESTORE_DRAFT_DOC_PREFIX = "draft_";
 const FIRESTORE_SETTINGS = {
   experimentalAutoDetectLongPolling: true,
   useFetchStreams: false
@@ -252,6 +253,37 @@ function writeJsonStorage(key, value) {
   }
 }
 
+function removeStorageItem(key) {
+  localStorage.removeItem(key);
+}
+
+function getDraftFirestoreDocId(userId = currentUserId) {
+  return userId ? `${FIRESTORE_DRAFT_DOC_PREFIX}${userId}` : "";
+}
+
+function normalizeDraftPayload(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const snapshot = value.snapshot && typeof value.snapshot === "object" && !Array.isArray(value.snapshot)
+    ? value.snapshot
+    : value;
+  return {
+    updatedAt: toNumber(value.updatedAt) || Date.now(),
+    snapshot
+  };
+}
+
+function readDraftPayloadFromStorage(userId = currentUserId) {
+  if (!userId) return null;
+  return normalizeDraftPayload(readJsonStorage(getDraftStorageKey(userId), null));
+}
+
+function writeDraftPayloadToStorage(payload, userId = currentUserId) {
+  if (!userId) return false;
+  const normalized = normalizeDraftPayload(payload);
+  if (!normalized) return false;
+  return writeJsonStorage(getDraftStorageKey(userId), normalized);
+}
+
 function updateFirebaseStatus(connected) {
   const el = $("firebaseStatus");
   if (!el) return;
@@ -292,7 +324,10 @@ async function reconnectFirebase() {
     try {
       await bootstrapStorageFromFirebase();
       subscribeFirestoreChanges();
-      if (currentUserId) refreshAppFromStorage();
+      if (currentUserId) {
+        refreshAppFromStorage();
+        await carregarRascunhoLocal();
+      }
       return true;
     } catch (error) {
       handleFirebaseConnectionError("Falha ao sincronizar dados após reconectar Firebase:", error);
@@ -396,6 +431,32 @@ function syncFirestoreDoc(docId, value) {
   });
 }
 
+async function readFirestoreDraftPayload(userId = currentUserId) {
+  const docId = getDraftFirestoreDocId(userId);
+  if (!docId) return null;
+  return normalizeDraftPayload(await readFirestoreDoc(docId, null));
+}
+
+function syncFirestoreDraftPayload(payload, userId = currentUserId) {
+  const docId = getDraftFirestoreDocId(userId);
+  const normalized = normalizeDraftPayload(payload);
+  if (!docId || !normalized) return;
+  syncFirestoreDoc(docId, normalized);
+}
+
+function clearFirestoreDraft(userId = currentUserId) {
+  const docId = getDraftFirestoreDocId(userId);
+  const ref = getFirestoreDoc(docId);
+  if (!docId) return;
+  if (!ref) {
+    scheduleFirebaseReconnect();
+    return;
+  }
+  ref.delete().catch((error) => {
+    handleFirebaseConnectionError(`Falha ao remover ${docId}:`, error);
+  });
+}
+
 function subscribeFirestoreChanges() {
   clearFirestoreListeners();
 
@@ -446,6 +507,35 @@ function subscribeFirestoreChanges() {
       }
     }, (error) => {
       handleFirebaseConnectionError("Erro ao escutar banco de máquinas:", error);
+    })
+  );
+
+  const draftDocId = getDraftFirestoreDocId();
+  if (!draftDocId) return;
+
+  firestoreUnsubscribers.push(
+    col.doc(draftDocId).onSnapshot((snap) => {
+      if (!snap.exists) {
+        removeStorageItem(getDraftStorageKey());
+        updateDraftStatus("Rascunho limpo.");
+        return;
+      }
+
+      const payload = normalizeDraftPayload(snap.data()?.data);
+      if (!payload) return;
+
+      const localPayload = readDraftPayloadFromStorage();
+      if (localPayload && localPayload.updatedAt > payload.updatedAt) return;
+
+      writeDraftPayloadToStorage(payload);
+      if (!currentUserId) return;
+
+      if (JSON.stringify(payload.snapshot) !== JSON.stringify(proposalFieldsSnapshot())) {
+        applyProposalSnapshot(payload.snapshot);
+      }
+      updateDraftStatus("Rascunho sincronizado com o Firestore.");
+    }, (error) => {
+      handleFirebaseConnectionError("Erro ao escutar rascunho:", error);
     })
   );
 }
@@ -940,7 +1030,7 @@ function saveSession(userId) {
 }
 
 function clearSession() {
-  localStorage.removeItem(SESSION_STORAGE_KEY);
+  removeStorageItem(SESSION_STORAGE_KEY);
 }
 
 function isAdmin(user = currentUser) {
@@ -2204,9 +2294,10 @@ function limparCampos() {
   atualizarCampoStatusProposta({ preserveValueWhenHidden: false });
   atualizarTextoBotaoProposta();
   if (currentUserId) {
-    localStorage.removeItem(getDraftStorageKey());
+    removeStorageItem(getDraftStorageKey());
+    clearFirestoreDraft();
   }
-  updateDraftStatus("Rascunho limpo deste aparelho.");
+  updateDraftStatus("Rascunho limpo.");
   calcularOrcamento();
   showToast("Campos limpos com sucesso.");
 }
@@ -2243,40 +2334,57 @@ function restaurarBancoDadosEstimativas() {
 function salvarRascunhoLocal() {
   if (!currentUserId) return;
 
-  const saved = writeJsonStorage(getDraftStorageKey(), proposalFieldsSnapshot());
-  if (saved) {
-    updateDraftStatus(`Rascunho salvo automaticamente às ${new Date().toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit"
-    })}.`);
-  }
+ const payload = {
+   updatedAt: Date.now(),
+   snapshot: proposalFieldsSnapshot()
+ };
+ const saved = writeDraftPayloadToStorage(payload);
+ if (saved) {
+   syncFirestoreDraftPayload(payload);
+   updateDraftStatus(`Rascunho salvo automaticamente às ${new Date().toLocaleTimeString("pt-BR", {
+     hour: "2-digit",
+     minute: "2-digit"
+   })}${firebaseSyncEnabled ? " no Firestore." : " neste aparelho."}`);
+ }
 }
 
-function carregarRascunhoLocal() {
-  if (!currentUserId) {
-    updateDraftStatus("Os dados do orçamento ficam salvos automaticamente neste aparelho.");
-    return;
-  }
+async function carregarRascunhoLocal() {
+ if (!currentUserId) {
+   updateDraftStatus("Os dados do orçamento ficam salvos automaticamente.");
+   return;
+ }
 
-  const currentDraftKey = getDraftStorageKey();
-  let snapshot = readJsonStorage(currentDraftKey, null);
+ let localPayload = readDraftPayloadFromStorage();
 
-  if (!snapshot) {
-    const legacySnapshot = readJsonStorage(LEGACY_DRAFT_STORAGE_KEY, null);
-    if (legacySnapshot) {
-      writeJsonStorage(currentDraftKey, legacySnapshot);
-      localStorage.removeItem(LEGACY_DRAFT_STORAGE_KEY);
-      snapshot = legacySnapshot;
-    }
-  }
+ if (!localPayload) {
+   const legacySnapshot = readJsonStorage(LEGACY_DRAFT_STORAGE_KEY, null);
+   if (legacySnapshot) {
+     localPayload = normalizeDraftPayload(legacySnapshot);
+     writeDraftPayloadToStorage(localPayload);
+     removeStorageItem(LEGACY_DRAFT_STORAGE_KEY);
+   }
+ }
 
-  if (!snapshot) {
-    updateDraftStatus("Os dados do orçamento ficam salvos automaticamente neste aparelho.");
-    return;
-  }
+ const firestorePayload = await readFirestoreDraftPayload();
+ const payload =
+   firestorePayload && (!localPayload || firestorePayload.updatedAt >= localPayload.updatedAt)
+     ? firestorePayload
+     : localPayload;
 
-  applyProposalSnapshot(snapshot);
-  updateDraftStatus("Rascunho local restaurado neste aparelho.");
+ if (!payload) {
+   updateDraftStatus("Os dados do orçamento ficam salvos automaticamente.");
+   return;
+ }
+
+ writeDraftPayloadToStorage(payload);
+ if (payload === localPayload && (!firestorePayload || localPayload.updatedAt > firestorePayload.updatedAt)) {
+   syncFirestoreDraftPayload(localPayload);
+ }
+
+ applyProposalSnapshot(payload.snapshot);
+ updateDraftStatus(payload === firestorePayload
+   ? "Rascunho restaurado do Firestore."
+   : "Rascunho local restaurado e sincronizado.");
 }
 
 async function salvarProposta() {
@@ -2649,7 +2757,7 @@ async function handleLogin(event) {
   currentUser = mergeUserProfile(user);
   editingProposalId = "";
   logoDataUrl = currentUser.profile.logoDataUrl || "";
-  atualizarInterfaceAutenticada();
+  await atualizarInterfaceAutenticada();
   $("loginSenha").value = "";
   if (currentUser.mustChangePassword) {
     showToast("Esta conta está com senha provisória. Atualize sua senha em Meu Perfil.");
@@ -2661,10 +2769,12 @@ async function handleLogin(event) {
 
 function handleLogout({ silent = false } = {}) {
   clearSession();
+  clearFirestoreListeners();
   currentUser = null;
   currentUserId = "";
   editingProposalId = "";
   logoDataUrl = "";
+  subscribeFirestoreChanges();
   updateAppVisibility();
   $("loginSenha").value = "";
   if (!silent) {
@@ -2672,7 +2782,7 @@ function handleLogout({ silent = false } = {}) {
   }
 }
 
-function atualizarInterfaceAutenticada() {
+async function atualizarInterfaceAutenticada() {
   refreshCurrentUser();
   updateAppVisibility();
   updateSessionInfo();
@@ -2688,7 +2798,8 @@ function atualizarInterfaceAutenticada() {
   $("btnAbrirBancoDados").textContent = "Abrir banco de dados";
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
-  carregarRascunhoLocal();
+  subscribeFirestoreChanges();
+  await carregarRascunhoLocal();
   atualizarCampoPisoTela({ preserveValueWhenDisabled: true });
   atualizarCampoCuraQuimica({ preserveValueWhenDisabled: true });
   atualizarCampoStatusProposta({ preserveValueWhenHidden: true });
@@ -2698,7 +2809,7 @@ function atualizarInterfaceAutenticada() {
   calcularOrcamento();
 }
 
-function restoreSession() {
+async function restoreSession() {
   const session = getSession();
   if (!session?.userId) {
     updateAppVisibility();
@@ -2714,7 +2825,7 @@ function restoreSession() {
 
   currentUserId = user.id;
   currentUser = mergeUserProfile(user);
-  atualizarInterfaceAutenticada();
+  await atualizarInterfaceAutenticada();
 }
 
 function bindStaticEvents() {
@@ -3001,7 +3112,7 @@ async function init() {
   await ensureAdminExists();
   applyMachineDatabaseToForm();
   updateAppVisibility();
-  restoreSession();
+  await restoreSession();
   atualizarTextoBotaoProposta();
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
