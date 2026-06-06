@@ -1,217 +1,18 @@
 const $ = (id) => document.getElementById(id);
 
 const M2_PER_WORKER = 100;
-const ROAD_DISTANCE_FACTOR = 1.25;
-const MIN_DISTANCE_FOR_TOLL_KM = 80;
-const TOLL_FACTOR_QUALP = 0.18;
-const TOLL_FACTOR_MAPS = 0.14;
-const AUTO_ROUTE_DEBOUNCE_MS = 500;
-const QUALP_ROUTE_SP_RJ = { distanciaKm: 435, pedagio: 98.4, origem: "São Paulo", destino: "Rio de Janeiro" };
-const QUALP_ROUTE_RJ_SP = { distanciaKm: 435, pedagio: 98.4, origem: "Rio de Janeiro", destino: "São Paulo" };
+const PROFILE_STORAGE_KEY = "proposta_perfil_v1";
+const PROPOSALS_STORAGE_KEY = "propostas_salvas_v1";
 
-const QUALP_ROTAS_DB = {
-  "01001000-20040030": QUALP_ROUTE_SP_RJ,
-  "20040030-01001000": QUALP_ROUTE_RJ_SP
-};
-
-const cacheCoordenadas = new Map();
-
-// ── Google Maps ─────────────────────────────────────────────────────────────
-
-const GMAPS_KEY_STORAGE = "gmaps_api_key";
-let googleMapsLoaded = false;
-let mapInstance = null;
-let mapaOverlays = [];
-
-function getGoogleMapsKey() {
-  return localStorage.getItem(GMAPS_KEY_STORAGE) || "";
-}
-
-function atualizarStatusChave() {
-  const key = getGoogleMapsKey();
-  const el = $("statusChave");
-  if (key) {
-    el.textContent = "✅ Chave configurada";
-    el.style.color = "var(--success)";
-  } else {
-    el.textContent = "⚠️ Nenhuma chave configurada";
-    el.style.color = "var(--muted)";
-  }
-}
-
-function salvarChaveGoogleMaps() {
-  const key = $("gmapsKey").value.trim();
-  if (!key) {
-    alert("Informe uma chave de API válida.");
-    return;
-  }
-  localStorage.setItem(GMAPS_KEY_STORAGE, key);
-  $("gmapsKey").value = "";
-  googleMapsLoaded = false;
-  atualizarStatusChave();
-}
-
-function limparChaveGoogleMaps() {
-  localStorage.removeItem(GMAPS_KEY_STORAGE);
-  $("gmapsKey").value = "";
-  googleMapsLoaded = false;
-  mapInstance = null;
-  atualizarStatusChave();
-}
-
-function carregarScriptGoogleMaps() {
-  if (googleMapsLoaded && window.google && window.google.maps) {
-    return Promise.resolve();
-  }
-
-  const key = getGoogleMapsKey();
-  if (!key) {
-    return Promise.reject(
-      new Error(
-        'Chave da API do Google Maps não configurada. Expanda "⚙️ Configuração — Google Maps API" no topo da página para configurar.'
-      )
-    );
-  }
-
-  return new Promise((resolve, reject) => {
-    if (window.google && window.google.maps) {
-      googleMapsLoaded = true;
-      resolve();
-      return;
-    }
-
-    window._gmapsReady = () => {
-      googleMapsLoaded = true;
-      resolve();
-    };
-
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=geometry&callback=_gmapsReady`;
-    script.async = true;
-    script.onerror = () =>
-      reject(
-        new Error(
-          "Falha ao carregar a API do Google Maps. Verifique se a chave de API está correta e se as APIs 'Routes API' e 'Maps JavaScript API' estão ativadas no Google Cloud Console."
-        )
-      );
-    document.head.appendChild(script);
-  });
-}
-
-async function calcularRotaGoogleMaps(cepOrigem, cepDestino) {
-  const key = getGoogleMapsKey();
-  if (!key) throw new Error("Chave da API do Google Maps não configurada.");
-
-  const fmt = (cep) => `${cep.slice(0, 5)}-${cep.slice(5)}, Brasil`;
-
-  const response = await fetch(
-    "https://routes.googleapis.com/directions/v2:computeRoutes",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": key,
-        "X-Goog-FieldMask":
-          "routes.distanceMeters,routes.travelAdvisory.tollInfo,routes.polyline.encodedPolyline"
-      },
-      body: JSON.stringify({
-        origin: { address: fmt(cepOrigem) },
-        destination: { address: fmt(cepDestino) },
-        travelMode: "DRIVE",
-        routingPreference: "TRAFFIC_UNAWARE",
-        extraComputations: ["TOLLS"],
-        routeModifiers: {
-          vehicleInfo: { emissionType: "DIESEL" }
-        }
-      })
-    }
-  );
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(
-      err?.error?.message || `Erro ao consultar Google Maps (HTTP ${response.status}).`
-    );
-  }
-
-  const data = await response.json();
-  const route = data?.routes?.[0];
-  if (!route) throw new Error("Nenhuma rota encontrada pelo Google Maps para os CEPs informados.");
-
-  const distanciaKm = (route.distanceMeters || 0) / 1000;
-
-  const tollPrices = route.travelAdvisory?.tollInfo?.estimatedPrice || [];
-  const brlToll = tollPrices.find((p) => p.currencyCode === "BRL");
-  let pedagio = 0;
-  if (brlToll) {
-    const units = Number(brlToll.units || "0");
-    const nanos = Number(brlToll.nanos || "0");
-    pedagio = units + nanos / 1_000_000_000;
-  }
-
-  return {
-    distanciaKm,
-    pedagio,
-    semPedagio: !brlToll,
-    polyline: route.polyline?.encodedPolyline || null
-  };
-}
-
-function exibirRotaNoMapa(encodedPolyline, info) {
-  const container = $("mapaContainer");
-  const mapaEl = $("mapa");
-  container.style.display = "block";
-
-  mapaOverlays.forEach((o) => o.setMap(null));
-  mapaOverlays = [];
-
-  if (!mapInstance) {
-    mapInstance = new google.maps.Map(mapaEl, {
-      zoom: 8,
-      center: { lat: -15.7801, lng: -47.9292 },
-      mapTypeId: "roadmap"
-    });
-  } else {
-    google.maps.event.trigger(mapInstance, "resize");
-  }
-
-  const path = google.maps.geometry.encoding.decodePath(encodedPolyline);
-
-  const polyline = new google.maps.Polyline({
-    path,
-    geodesic: true,
-    strokeColor: "#0f766e",
-    strokeOpacity: 1.0,
-    strokeWeight: 5
-  });
-  polyline.setMap(mapInstance);
-  mapaOverlays.push(polyline);
-
-  const bounds = new google.maps.LatLngBounds();
-  path.forEach((p) => bounds.extend(p));
-  mapInstance.fitBounds(bounds);
-
-  const markerOrigem = new google.maps.Marker({
-    position: path[0],
-    map: mapInstance,
-    title: "Origem"
-  });
-  const markerDestino = new google.maps.Marker({
-    position: path[path.length - 1],
-    map: mapInstance,
-    title: "Destino"
-  });
-  mapaOverlays.push(markerOrigem, markerDestino);
-
-  $("mapaInfo").textContent = info || "";
-  container.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
+let logoDataUrl = "";
 
 function toNumber(value) {
   const number = parseFloat(value);
-  return isNaN(number) ? 0 : number;
+  return Number.isNaN(number) ? 0 : number;
+}
+
+function onlyDigits(value) {
+  return (value || "").replace(/\D/g, "");
 }
 
 function formatMoney(value) {
@@ -228,16 +29,8 @@ function formatNumber(value) {
   });
 }
 
-function onlyDigits(value) {
-  return value.replace(/\D/g, "");
-}
-
-function normalizarCep(value) {
-  return onlyDigits(value).slice(0, 8);
-}
-
 function formatarCep(value) {
-  const digits = normalizarCep(value);
+  const digits = onlyDigits(value).slice(0, 8);
   if (digits.length <= 5) return digits;
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
@@ -269,17 +62,8 @@ function formatarTelefone(value) {
     .replace(/(\d{5})(\d{1,4})$/, "$1-$2");
 }
 
-function haversineKm(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+function calcularFuncionariosPorMetragem(metragem) {
+  return metragem > 0 ? Math.ceil(metragem / M2_PER_WORKER) : 0;
 }
 
 async function buscarDadosCep(cep) {
@@ -290,77 +74,13 @@ async function buscarDadosCep(cep) {
   return data;
 }
 
-async function buscarCoordenadasCep(cep) {
-  if (cacheCoordenadas.has(cep)) {
-    return cacheCoordenadas.get(cep);
-  }
-
-  try {
-    const response = await fetch(`https://brasilapi.com.br/api/cep/v2/${cep}`);
-    if (!response.ok) {
-      cacheCoordenadas.set(cep, null);
-      return null;
-    }
-    const data = await response.json();
-    const coords = data?.location?.coordinates;
-    if (!coords?.latitude || !coords?.longitude) {
-      cacheCoordenadas.set(cep, null);
-      return null;
-    }
-    const parsed = {
-      lat: Number(coords.latitude),
-      lon: Number(coords.longitude)
-    };
-    cacheCoordenadas.set(cep, parsed);
-    return parsed;
-  } catch {
-    cacheCoordenadas.set(cep, null);
-    return null;
-  }
-}
-
-async function buscarDistanciaMaps(coordsOrigem, coordsDestino) {
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=false`;
-    const response = await fetch(url);
-    if (!response.ok) return 0;
-    const data = await response.json();
-    return data?.routes?.[0]?.distance ? data.routes[0].distance / 1000 : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function estimarPedagio(distanciaKm, tipoMapa) {
-  if (distanciaKm < MIN_DISTANCE_FOR_TOLL_KM) return 0;
-  const fator = tipoMapa === "QUALP" ? TOLL_FACTOR_QUALP : TOLL_FACTOR_MAPS;
-  return distanciaKm * fator;
-}
-
-function calcularFuncionariosPorMetragem(metragem) {
-  return metragem > 0 ? Math.ceil(metragem / M2_PER_WORKER) : 0;
-}
-
-async function preencherEnderecoPorCepInput({
-  cepFieldId,
-  enderecoFieldId,
-  labelErro,
-  alertOnError = true
-}) {
+async function preencherEnderecoPorCepInput({ cepFieldId, enderecoFieldId, labelErro, alertOnError = true }) {
   const cepEl = $(cepFieldId);
   const enderecoEl = $(enderecoFieldId);
-  if (!cepEl || !enderecoEl) {
-    if (alertOnError) {
-      alert("Não foi possível localizar os campos de CEP/endereço para preencher automaticamente.");
-    }
-    return;
-  }
+  const cep = onlyDigits(cepEl.value).slice(0, 8);
 
-  const cep = normalizarCep(cepEl.value);
   if (cep.length !== 8) {
-    if (alertOnError) {
-      alert(`Informe um CEP válido de 8 dígitos para ${labelErro}.`);
-    }
+    if (alertOnError) alert(`Informe um CEP válido de 8 dígitos para ${labelErro}.`);
     return;
   }
 
@@ -372,35 +92,91 @@ async function preencherEnderecoPorCepInput({
     cepEl.value = formatarCep(cep);
     enderecoEl.value = endereco || enderecoEl.value;
   } catch (error) {
-    if (alertOnError) {
-      alert(error.message || "Não foi possível buscar o CEP.");
-    }
+    if (alertOnError) alert(error.message || "Não foi possível buscar o CEP.");
   }
-}
-
-async function preencherEnderecoPorCep(alertOnError = true) {
-  await preencherEnderecoPorCepInput({
-    cepFieldId: "cep",
-    enderecoFieldId: "endereco",
-    labelErro: "a obra",
-    alertOnError
-  });
-}
-
-async function preencherEnderecoOrigemPorCep(alertOnError = true) {
-  await preencherEnderecoPorCepInput({
-    cepFieldId: "cepOrigem",
-    enderecoFieldId: "enderecoOrigem",
-    labelErro: "a unidade base",
-    alertOnError
-  });
 }
 
 async function preencherEnderecosPorCep() {
   await Promise.all([
-    preencherEnderecoOrigemPorCep(false),
-    preencherEnderecoPorCep(false)
+    preencherEnderecoPorCepInput({
+      cepFieldId: "cepOrigem",
+      enderecoFieldId: "enderecoOrigem",
+      labelErro: "a unidade base",
+      alertOnError: false
+    }),
+    preencherEnderecoPorCepInput({
+      cepFieldId: "cep",
+      enderecoFieldId: "endereco",
+      labelErro: "a obra",
+      alertOnError: false
+    })
   ]);
+}
+
+function getProfileFromForm() {
+  return {
+    nomeVendedor: $("perfilNomeVendedor").value.trim(),
+    telefoneVendedor: $("perfilTelefoneVendedor").value.trim(),
+    emailVendedor: $("perfilEmailVendedor").value.trim(),
+    empresa: $("perfilEmpresa").value.trim(),
+    cnpj: $("perfilCnpj").value.trim(),
+    enderecoEmpresa: $("perfilEndereco").value.trim(),
+    logoDataUrl
+  };
+}
+
+function applyProfileToForm(profile = {}) {
+  $("perfilNomeVendedor").value = profile.nomeVendedor || "";
+  $("perfilTelefoneVendedor").value = profile.telefoneVendedor || "";
+  $("perfilEmailVendedor").value = profile.emailVendedor || "";
+  $("perfilEmpresa").value = profile.empresa || "";
+  $("perfilCnpj").value = profile.cnpj || "";
+  $("perfilEndereco").value = profile.enderecoEmpresa || "";
+  logoDataUrl = profile.logoDataUrl || "";
+  atualizarPreviaPerfil();
+}
+
+function atualizarPreviaPerfil() {
+  const profile = getProfileFromForm();
+  const prevLogo = $("prevLogo");
+
+  $("prevEmpresa").textContent = profile.empresa || "Sua empresa";
+  $("prevEmpresaCnpj").textContent = `CNPJ: ${profile.cnpj || "-"}`;
+  $("prevEmpresaEndereco").textContent = `Endereço: ${profile.enderecoEmpresa || "-"}`;
+  $("prevVendedorNome").textContent = profile.nomeVendedor || "-";
+  $("prevVendedorContato").textContent = profile.telefoneVendedor || "-";
+  $("prevVendedorEmail").textContent = profile.emailVendedor || "-";
+
+  if (profile.logoDataUrl) {
+    prevLogo.src = profile.logoDataUrl;
+    prevLogo.hidden = false;
+  } else {
+    prevLogo.hidden = true;
+    prevLogo.removeAttribute("src");
+  }
+}
+
+function salvarPerfil() {
+  const profile = getProfileFromForm();
+  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+  atualizarPreviaPerfil();
+  alert("Perfil salvo com sucesso.");
+}
+
+function carregarPerfil() {
+  const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+  if (!raw) return;
+  try {
+    applyProfileToForm(JSON.parse(raw));
+  } catch {
+    localStorage.removeItem(PROFILE_STORAGE_KEY);
+  }
+}
+
+function limparPerfil() {
+  applyProfileToForm({});
+  $("perfilLogo").value = "";
+  localStorage.removeItem(PROFILE_STORAGE_KEY);
 }
 
 function calcularOrcamento() {
@@ -432,12 +208,7 @@ function calcularOrcamento() {
   const custoAlimentacao = funcionariosCalculados * alimentacaoFuncionario * dias;
   const custoCombustivelMaquinas = consumoMaquinas * precoCombustivel;
   const subtotal =
-    custoDeslocamento +
-    custoMaoDeObra +
-    custoAlimentacao +
-    custoCombustivelMaquinas +
-    encargos +
-    outrosCustos;
+    custoDeslocamento + custoMaoDeObra + custoAlimentacao + custoCombustivelMaquinas + encargos + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
   const total = subtotal + valorLucro;
   const valorM2 = metragem > 0 ? total / metragem : 0;
@@ -459,6 +230,13 @@ function calcularOrcamento() {
   $("resLucro").textContent = formatMoney(valorLucro);
   $("resTotal").textContent = formatMoney(total);
   $("resValorM2").textContent = formatMoney(valorM2);
+
+  $("prevTitulo").textContent = $("propostaTitulo").value.trim() || "-";
+  $("prevValidade").textContent = $("propostaValidade").value.trim() || "-";
+  $("prevPrazo").textContent = $("propostaPrazo").value.trim() || "-";
+  $("prevPagamento").textContent = $("propostaPagamento").value.trim() || "-";
+  $("prevObservacoes").textContent = `Observações: ${$("propostaObservacoes").value.trim() || "-"}`;
+  atualizarPreviaPerfil();
 }
 
 function limparCampos() {
@@ -484,7 +262,12 @@ function limparCampos() {
     "encargos",
     "alimentacaoFuncionario",
     "outrosCustos",
-    "lucro"
+    "lucro",
+    "propostaTitulo",
+    "propostaValidade",
+    "propostaPagamento",
+    "propostaPrazo",
+    "propostaObservacoes"
   ];
 
   ids.forEach((id) => {
@@ -492,22 +275,165 @@ function limparCampos() {
   });
 
   $("viagens").value = 1;
-  $("resCliente").textContent = "-";
-  $("resObra").textContent = "-";
-  $("resArea").textContent = "0,00 m²";
-  $("resCombustivel").textContent = "R$ 0,00";
-  $("resPedagio").textContent = "R$ 0,00";
-  $("resDeslocamento").textContent = "R$ 0,00";
-  $("resMaoDeObra").textContent = "R$ 0,00";
-  $("resFuncionarios").textContent = "0";
-  $("resAlimentacao").textContent = "R$ 0,00";
-  $("resCombustivelMaquinas").textContent = "R$ 0,00";
-  $("resEncargos").textContent = "R$ 0,00";
-  $("resOutros").textContent = "R$ 0,00";
-  $("resSubtotal").textContent = "R$ 0,00";
-  $("resLucro").textContent = "R$ 0,00";
-  $("resTotal").textContent = "R$ 0,00";
-  $("resValorM2").textContent = "R$ 0,00";
+  calcularOrcamento();
+}
+
+function proposalFieldsSnapshot() {
+  const ids = [
+    "cliente",
+    "documento",
+    "email",
+    "telefone",
+    "obra",
+    "cepOrigem",
+    "enderecoOrigem",
+    "cep",
+    "endereco",
+    "metragem",
+    "distancia",
+    "consumo",
+    "precoCombustivel",
+    "pedagio",
+    "consumoMaquinas",
+    "valorDia",
+    "dias",
+    "encargos",
+    "alimentacaoFuncionario",
+    "outrosCustos",
+    "lucro",
+    "viagens",
+    "propostaTitulo",
+    "propostaValidade",
+    "propostaPagamento",
+    "propostaPrazo",
+    "propostaObservacoes"
+  ];
+
+  return ids.reduce((acc, id) => {
+    acc[id] = $(id).value;
+    return acc;
+  }, {});
+}
+
+function applyProposalSnapshot(snapshot = {}) {
+  Object.keys(snapshot).forEach((id) => {
+    if ($(id)) $(id).value = snapshot[id];
+  });
+  calcularOrcamento();
+}
+
+function getSavedProposals() {
+  try {
+    return JSON.parse(localStorage.getItem(PROPOSALS_STORAGE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveProposals(list) {
+  localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(list));
+}
+
+function atualizarListaPropostas() {
+  const select = $("propostasSalvas");
+  const list = getSavedProposals();
+
+  select.innerHTML = '<option value="">Selecione uma proposta salva</option>';
+
+  list.forEach((item) => {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = `${item.titulo} - ${item.cliente} (${item.data})`;
+    select.appendChild(option);
+  });
+}
+
+function salvarProposta() {
+  calcularOrcamento();
+  const list = getSavedProposals();
+  const now = new Date();
+  const proposta = {
+    id: String(now.getTime()),
+    titulo: $("propostaTitulo").value.trim() || "Proposta sem título",
+    cliente: $("cliente").value.trim() || "Cliente não informado",
+    data: now.toLocaleDateString("pt-BR"),
+    snapshot: proposalFieldsSnapshot()
+  };
+
+  list.unshift(proposta);
+  saveProposals(list);
+  atualizarListaPropostas();
+  $("propostasSalvas").value = proposta.id;
+  alert("Proposta salva no armazenamento local.");
+}
+
+function carregarPropostaSelecionada() {
+  const id = $("propostasSalvas").value;
+  if (!id) {
+    alert("Selecione uma proposta para carregar.");
+    return;
+  }
+
+  const proposta = getSavedProposals().find((item) => item.id === id);
+  if (!proposta) {
+    alert("Proposta não encontrada.");
+    return;
+  }
+
+  applyProposalSnapshot(proposta.snapshot);
+}
+
+function excluirPropostaSelecionada() {
+  const id = $("propostasSalvas").value;
+  if (!id) {
+    alert("Selecione uma proposta para excluir.");
+    return;
+  }
+
+  const list = getSavedProposals().filter((item) => item.id !== id);
+  saveProposals(list);
+  atualizarListaPropostas();
+}
+
+function gerarMensagemWhatsApp() {
+  const profile = getProfileFromForm();
+  const mensagem = [
+    `*${$("propostaTitulo").value.trim() || "Proposta Comercial"}*`,
+    "",
+    `Empresa: ${profile.empresa || "-"}`,
+    `CNPJ: ${profile.cnpj || "-"}`,
+    `Endereço: ${profile.enderecoEmpresa || "-"}`,
+    "",
+    `Cliente: ${$("cliente").value.trim() || "-"}`,
+    `Obra: ${$("obra").value.trim() || "-"}`,
+    `Área: ${$("resArea").textContent}`,
+    `Valor total: ${$("resTotal").textContent}`,
+    `Preço por m²: ${$("resValorM2").textContent}`,
+    `Validade: ${$("propostaValidade").value.trim() || "-"}`,
+    `Prazo: ${$("propostaPrazo").value.trim() || "-"}`,
+    `Pagamento: ${$("propostaPagamento").value.trim() || "-"}`,
+    `Observações: ${$("propostaObservacoes").value.trim() || "-"}`,
+    "",
+    `Vendedor: ${profile.nomeVendedor || "-"}`,
+    `Contato: ${profile.telefoneVendedor || "-"}`,
+    `E-mail: ${profile.emailVendedor || "-"}`
+  ].join("\n");
+
+  window.open(`https://wa.me/?text=${encodeURIComponent(mensagem)}`, "_blank");
+}
+
+function ativarTabs() {
+  const buttons = document.querySelectorAll(".tab-btn");
+  const panels = document.querySelectorAll(".tab-panel");
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      buttons.forEach((btn) => btn.classList.remove("active"));
+      panels.forEach((panel) => panel.classList.remove("active"));
+      button.classList.add("active");
+      $(button.dataset.tab).classList.add("active");
+    });
+  });
 }
 
 $("documento").addEventListener("input", (event) => {
@@ -516,6 +442,16 @@ $("documento").addEventListener("input", (event) => {
 
 $("telefone").addEventListener("input", (event) => {
   event.target.value = formatarTelefone(event.target.value);
+});
+
+$("perfilTelefoneVendedor").addEventListener("input", (event) => {
+  event.target.value = formatarTelefone(event.target.value);
+  atualizarPreviaPerfil();
+});
+
+$("perfilCnpj").addEventListener("input", (event) => {
+  event.target.value = formatarDocumento(event.target.value);
+  atualizarPreviaPerfil();
 });
 
 $("cep").addEventListener("input", (event) => {
@@ -527,15 +463,23 @@ $("cepOrigem").addEventListener("input", (event) => {
 });
 
 $("cepOrigem").addEventListener("blur", async () => {
-  await preencherEnderecoOrigemPorCep();
+  await preencherEnderecoPorCepInput({
+    cepFieldId: "cepOrigem",
+    enderecoFieldId: "enderecoOrigem",
+    labelErro: "a unidade base"
+  });
 });
+
 $("cep").addEventListener("blur", async () => {
-  await preencherEnderecoPorCep();
+  await preencherEnderecoPorCepInput({
+    cepFieldId: "cep",
+    enderecoFieldId: "endereco",
+    labelErro: "a obra"
+  });
 });
 
 $("metragem").addEventListener("input", () => {
-  const metragem = toNumber($("metragem").value);
-  $("funcionarios").value = calcularFuncionariosPorMetragem(metragem);
+  $("funcionarios").value = calcularFuncionariosPorMetragem(toNumber($("metragem").value));
 });
 
 [
@@ -553,13 +497,49 @@ $("metragem").addEventListener("input", () => {
   "encargos",
   "alimentacaoFuncionario",
   "outrosCustos",
-  "lucro"
+  "lucro",
+  "propostaTitulo",
+  "propostaValidade",
+  "propostaPagamento",
+  "propostaPrazo",
+  "propostaObservacoes"
 ].forEach((id) => {
   $(id).addEventListener("input", calcularOrcamento);
 });
 
+["perfilNomeVendedor", "perfilEmailVendedor", "perfilEmpresa", "perfilEndereco"].forEach((id) => {
+  $(id).addEventListener("input", atualizarPreviaPerfil);
+});
+
+$("perfilLogo").addEventListener("change", (event) => {
+  const file = event.target.files?.[0];
+  if (!file) {
+    logoDataUrl = "";
+    atualizarPreviaPerfil();
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    logoDataUrl = String(reader.result || "");
+    atualizarPreviaPerfil();
+  };
+  reader.readAsDataURL(file);
+});
+
+$("btnSalvarPerfil").addEventListener("click", salvarPerfil);
+$("btnLimparPerfil").addEventListener("click", limparPerfil);
 $("btnCalcular").addEventListener("click", calcularOrcamento);
 $("btnLimpar").addEventListener("click", limparCampos);
 $("btnBuscarCep").addEventListener("click", async () => {
   await preencherEnderecosPorCep();
 });
+$("btnSalvarProposta").addEventListener("click", salvarProposta);
+$("btnCarregarProposta").addEventListener("click", carregarPropostaSelecionada);
+$("btnExcluirProposta").addEventListener("click", excluirPropostaSelecionada);
+$("btnWhatsApp").addEventListener("click", gerarMensagemWhatsApp);
+
+ativarTabs();
+carregarPerfil();
+atualizarListaPropostas();
+calcularOrcamento();
