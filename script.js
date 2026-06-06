@@ -298,12 +298,29 @@ async function bootstrapStorageFromFirebase() {
 
     if (users && Array.isArray(users)) {
       writeJsonStorage(USERS_STORAGE_KEY, users);
+    } else {
+      const localUsers = readJsonStorage(USERS_STORAGE_KEY, null);
+      if (localUsers && Array.isArray(localUsers) && localUsers.length) {
+        syncFirestoreDoc(FIRESTORE_USERS_DOC, localUsers);
+      }
     }
+
     if (proposals && Array.isArray(proposals)) {
       writeJsonStorage(PROPOSALS_STORAGE_KEY, proposals);
+    } else {
+      const localProposals = readJsonStorage(PROPOSALS_STORAGE_KEY, null);
+      if (localProposals && Array.isArray(localProposals) && localProposals.length) {
+        syncFirestoreDoc(FIRESTORE_PROPOSALS_DOC, localProposals);
+      }
     }
+
     if (machineDb && !Array.isArray(machineDb) && typeof machineDb === "object") {
       writeJsonStorage(MACHINE_DB_STORAGE_KEY, machineDb);
+    } else {
+      const localMachineDb = readJsonStorage(MACHINE_DB_STORAGE_KEY, null);
+      if (localMachineDb && !Array.isArray(localMachineDb) && typeof localMachineDb === "object") {
+        syncFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, localMachineDb);
+      }
     }
   } catch (error) {
     console.error("Falha ao carregar dados do Firebase:", error);
