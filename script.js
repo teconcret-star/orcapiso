@@ -2,13 +2,18 @@ const $ = (id) => document.getElementById(id);
 
 const M2_PER_WORKER = 100;
 const PROFILE_STORAGE_KEY = "proposta_perfil_v1";
+const PROFILES_STORAGE_KEY = "proposta_perfis_v1";
 const PROPOSALS_STORAGE_KEY = "propostas_salvas_v1";
 const DRAFT_STORAGE_KEY = "proposta_rascunho_v1";
 const WORKER_MODE_AUTO = "auto";
 const WORKER_MODE_MANUAL = "manual";
+// Fallback delay to clear print mode when canceling print in browsers that may skip afterprint (e.g. some Safari/Firefox flows).
+const PRINT_CLASS_CLEANUP_DELAY_MS = 500;
 
 let logoDataUrl = "";
 let toastTimeoutId;
+let editingProfileId = "";
+let editingProposalId = "";
 
 function toNumber(value) {
   const number = parseFloat(value);
@@ -31,6 +36,13 @@ function formatNumber(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+}
+
+function createUniqueId() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function readJsonStorage(key, fallback) {
@@ -200,6 +212,32 @@ function getProfileFromForm() {
   };
 }
 
+function getSavedProfiles() {
+  const profiles = readJsonStorage(PROFILES_STORAGE_KEY, null);
+  if (Array.isArray(profiles)) return profiles;
+
+  const legacyProfile = readJsonStorage(PROFILE_STORAGE_KEY, null);
+  if (!legacyProfile || typeof legacyProfile !== "object") return [];
+
+  const migratedProfiles = [{
+    id: createUniqueId(),
+    ...legacyProfile,
+    data: new Date().toLocaleDateString("pt-BR")
+  }];
+
+  saveProfiles(migratedProfiles);
+  localStorage.removeItem(PROFILE_STORAGE_KEY);
+  return migratedProfiles;
+}
+
+function saveProfiles(list) {
+  return writeJsonStorage(PROFILES_STORAGE_KEY, list);
+}
+
+function atualizarTextoBotaoPerfil() {
+  $("btnSalvarPerfil").textContent = editingProfileId ? "Atualizar perfil" : "Salvar perfil";
+}
+
 function applyProfileToForm(profile = {}) {
   $("perfilNomeVendedor").value = profile.nomeVendedor || "";
   $("perfilTelefoneVendedor").value = profile.telefoneVendedor || "";
@@ -232,24 +270,125 @@ function atualizarPreviaPerfil() {
   }
 }
 
+function renderizarTabelaPerfis() {
+  const tbody = $("tabelaPerfisBody");
+  const list = getSavedProfiles();
+
+  tbody.innerHTML = "";
+
+  if (!list.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.textContent = "Nenhum perfil salvo.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  list.forEach((item) => {
+    const row = document.createElement("tr");
+    const vendedor = document.createElement("td");
+    vendedor.textContent = item.nomeVendedor || "-";
+
+    const empresa = document.createElement("td");
+    empresa.textContent = item.empresa || "-";
+
+    const contato = document.createElement("td");
+    contato.textContent = item.telefoneVendedor || item.emailVendedor || "-";
+
+    const actions = document.createElement("td");
+    actions.className = "table-actions";
+
+    const btnEditar = document.createElement("button");
+    btnEditar.className = "btn btn-table btn-secondary";
+    btnEditar.dataset.action = "editar-perfil";
+    btnEditar.dataset.id = item.id;
+    btnEditar.textContent = "Editar";
+
+    const btnExcluir = document.createElement("button");
+    btnExcluir.className = "btn btn-table btn-danger";
+    btnExcluir.dataset.action = "excluir-perfil";
+    btnExcluir.dataset.id = item.id;
+    btnExcluir.textContent = "Excluir";
+
+    actions.append(btnEditar, btnExcluir);
+    row.append(vendedor, empresa, contato, actions);
+    fragment.appendChild(row);
+  });
+
+  tbody.appendChild(fragment);
+}
+
 function salvarPerfil() {
   const profile = getProfileFromForm();
-  if (!writeJsonStorage(PROFILE_STORAGE_KEY, profile)) return;
+  const list = getSavedProfiles();
+  const now = Date.now();
+
+  if (editingProfileId) {
+    const index = list.findIndex((item) => item.id === editingProfileId);
+    if (index >= 0) {
+      list[index] = {
+        ...list[index],
+        ...profile
+      };
+    }
+  } else {
+    editingProfileId = createUniqueId();
+    list.unshift({
+      id: editingProfileId,
+      ...profile,
+      data: new Date(now).toLocaleDateString("pt-BR"),
+      timestamp: now
+    });
+  }
+
+  if (!saveProfiles(list)) return;
   atualizarPreviaPerfil();
+  renderizarTabelaPerfis();
+  atualizarTextoBotaoPerfil();
   showToast("Perfil salvo com sucesso.");
 }
 
 function carregarPerfil() {
-  const profile = readJsonStorage(PROFILE_STORAGE_KEY, null);
+  const profile = getSavedProfiles()[0];
   if (!profile) return;
+  editingProfileId = profile.id;
   applyProfileToForm(profile);
+  atualizarTextoBotaoPerfil();
+}
+
+function carregarPerfilPorId(id) {
+  const profile = getSavedProfiles().find((item) => item.id === id);
+  if (!profile) return;
+  editingProfileId = id;
+  applyProfileToForm(profile);
+  atualizarTextoBotaoPerfil();
+  showToast("Perfil carregado para edição.");
+}
+
+function excluirPerfilPorId(id) {
+  const list = getSavedProfiles().filter((item) => item.id !== id);
+  if (!saveProfiles(list)) return;
+  if (editingProfileId === id) {
+    editingProfileId = "";
+    applyProfileToForm({});
+    $("perfilLogo").value = "";
+  }
+  renderizarTabelaPerfis();
+  atualizarTextoBotaoPerfil();
+  showToast("Perfil excluído com sucesso.");
 }
 
 function limparPerfil() {
+  editingProfileId = "";
   applyProfileToForm({});
   $("perfilLogo").value = "";
-  localStorage.removeItem(PROFILE_STORAGE_KEY);
-  showToast("Perfil removido deste aparelho.");
+  renderizarTabelaPerfis();
+  atualizarTextoBotaoPerfil();
+  showToast("Campos do perfil limpos.");
 }
 
 function calcularOrcamento() {
@@ -368,7 +507,9 @@ function limparCampos() {
 
   $("viagens").value = 1;
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
+  editingProposalId = "";
   atualizarModoFuncionarios({ preserveManualValue: false });
+  atualizarTextoBotaoProposta();
   localStorage.removeItem(DRAFT_STORAGE_KEY);
   updateDraftStatus("Rascunho limpo deste aparelho.");
   calcularOrcamento();
@@ -453,18 +594,60 @@ function carregarRascunhoLocal() {
   updateDraftStatus("Rascunho local restaurado neste aparelho.");
 }
 
-function atualizarListaPropostas() {
-  const select = $("propostasSalvas");
+function atualizarTextoBotaoProposta() {
+  $("btnSalvarProposta").textContent = editingProposalId ? "Atualizar proposta" : "Salvar proposta";
+}
+
+function renderizarTabelaPropostas() {
+  const tbody = $("tabelaPropostasBody");
   const list = getSavedProposals();
 
-  select.innerHTML = '<option value="">Selecione uma proposta salva</option>';
+  tbody.innerHTML = "";
+
+  if (!list.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.textContent = "Nenhuma proposta salva.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
 
   list.forEach((item) => {
-    const option = document.createElement("option");
-    option.value = item.id;
-    option.textContent = `${item.titulo} - ${item.cliente} (${item.data})`;
-    select.appendChild(option);
+    const row = document.createElement("tr");
+    const titulo = document.createElement("td");
+    titulo.textContent = item.titulo || "-";
+
+    const cliente = document.createElement("td");
+    cliente.textContent = item.cliente || "-";
+
+    const data = document.createElement("td");
+    data.textContent = item.data || "-";
+
+    const actions = document.createElement("td");
+    actions.className = "table-actions";
+
+    const btnEditar = document.createElement("button");
+    btnEditar.className = "btn btn-table btn-secondary";
+    btnEditar.dataset.action = "editar-proposta";
+    btnEditar.dataset.id = item.id;
+    btnEditar.textContent = "Editar";
+
+    const btnExcluir = document.createElement("button");
+    btnExcluir.className = "btn btn-table btn-danger";
+    btnExcluir.dataset.action = "excluir-proposta";
+    btnExcluir.dataset.id = item.id;
+    btnExcluir.textContent = "Excluir";
+
+    actions.append(btnEditar, btnExcluir);
+    row.append(titulo, cliente, data, actions);
+    fragment.appendChild(row);
   });
+
+  tbody.appendChild(fragment);
 }
 
 function salvarProposta() {
@@ -476,52 +659,60 @@ function salvarProposta() {
   }
 
   const list = getSavedProposals();
-  const now = new Date();
-  const proposta = {
-    id: String(now.getTime()),
+  const now = Date.now();
+  const propostaAtualizada = {
     titulo: $("propostaTitulo").value.trim() || "Proposta sem título",
     cliente: $("cliente").value.trim() || "Cliente não informado",
-    data: now.toLocaleDateString("pt-BR"),
+    data: new Date(now).toLocaleDateString("pt-BR"),
+    timestamp: now,
     snapshot: proposalFieldsSnapshot()
   };
 
-  list.unshift(proposta);
+  if (editingProposalId) {
+    const index = list.findIndex((item) => item.id === editingProposalId);
+    if (index >= 0) {
+      list[index] = {
+        ...list[index],
+        ...propostaAtualizada
+      };
+    }
+  } else {
+    editingProposalId = createUniqueId();
+    list.unshift({
+      id: editingProposalId,
+      ...propostaAtualizada
+    });
+  }
+
   if (!saveProposals(list)) return;
-  atualizarListaPropostas();
-  $("propostasSalvas").value = proposta.id;
+  renderizarTabelaPropostas();
+  atualizarTextoBotaoProposta();
   salvarRascunhoLocal();
   showToast("Proposta salva no armazenamento local.");
 }
 
-function carregarPropostaSelecionada() {
-  const id = $("propostasSalvas").value;
-  if (!id) {
-    showToast("Selecione uma proposta para carregar.", true);
-    return;
-  }
-
+function carregarPropostaPorId(id) {
   const proposta = getSavedProposals().find((item) => item.id === id);
   if (!proposta) {
     showToast("Proposta não encontrada.", true);
     return;
   }
 
+  editingProposalId = id;
   applyProposalSnapshot(proposta.snapshot);
+  atualizarTextoBotaoProposta();
   salvarRascunhoLocal();
-  showToast("Proposta carregada com sucesso.");
+  showToast("Proposta carregada para edição.");
 }
 
-function excluirPropostaSelecionada() {
-  const id = $("propostasSalvas").value;
-  if (!id) {
-    showToast("Selecione uma proposta para excluir.", true);
-    return;
-  }
-
+function excluirPropostaPorId(id) {
   const list = getSavedProposals().filter((item) => item.id !== id);
   if (!saveProposals(list)) return;
-  atualizarListaPropostas();
-  $("propostasSalvas").value = "";
+  if (editingProposalId === id) {
+    editingProposalId = "";
+    atualizarTextoBotaoProposta();
+  }
+  renderizarTabelaPropostas();
   showToast("Proposta excluída do armazenamento local.");
 }
 
@@ -556,6 +747,27 @@ function gerarMensagemWhatsApp() {
   ].join("\n");
 
   window.open(`https://wa.me/?text=${encodeURIComponent(mensagem)}`, "_blank");
+}
+
+function salvarPropostaEmPdf() {
+  const resumo = calcularOrcamento();
+  if (resumo.total <= 0) {
+    showToast("Calcule um orçamento válido antes de salvar em PDF.", true);
+    return;
+  }
+
+  document.body.classList.add("print-proposal");
+  try {
+    window.print();
+  } finally {
+    window.setTimeout(() => {
+      limparEstadoImpressao();
+    }, PRINT_CLASS_CLEANUP_DELAY_MS);
+  }
+}
+
+function limparEstadoImpressao() {
+  document.body.classList.remove("print-proposal");
 }
 
 function ativarTabs() {
@@ -703,13 +915,42 @@ $("btnBuscarCep").addEventListener("click", async () => {
   salvarRascunhoLocal();
 });
 $("btnSalvarProposta").addEventListener("click", salvarProposta);
-$("btnCarregarProposta").addEventListener("click", carregarPropostaSelecionada);
-$("btnExcluirProposta").addEventListener("click", excluirPropostaSelecionada);
+$("btnSalvarPdf").addEventListener("click", salvarPropostaEmPdf);
 $("btnWhatsApp").addEventListener("click", gerarMensagemWhatsApp);
+$("tabelaPerfisBody").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+
+  const action = button.dataset.action;
+  const id = button.dataset.id;
+  if (!id) return;
+
+  if (action === "editar-perfil") carregarPerfilPorId(id);
+  if (action === "excluir-perfil") excluirPerfilPorId(id);
+});
+
+$("tabelaPropostasBody").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action]");
+  if (!button) return;
+
+  const action = button.dataset.action;
+  const id = button.dataset.id;
+  if (!id) return;
+
+  if (action === "editar-proposta") carregarPropostaPorId(id);
+  if (action === "excluir-proposta") excluirPropostaPorId(id);
+});
+
+window.addEventListener("afterprint", () => {
+  limparEstadoImpressao();
+});
 
 ativarTabs();
 carregarPerfil();
-atualizarListaPropostas();
+renderizarTabelaPerfis();
+renderizarTabelaPropostas();
+atualizarTextoBotaoPerfil();
+atualizarTextoBotaoProposta();
 atualizarModoFuncionarios({ preserveManualValue: false });
 carregarRascunhoLocal();
 calcularOrcamento();
