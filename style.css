@@ -310,6 +310,28 @@ select {
   gap: 8px;
 }
 
+.equipamentos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.equipamento-item {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr auto;
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.equipamento-item .btn {
+  min-height: 46px;
+}
+
 .table-wrap {
   margin-top: 12px;
   overflow-x: auto;
@@ -661,6 +683,10 @@ select {
 
   .table-actions {
     flex-direction: column;
+  }
+
+  .equipamento-item {
+    grid-template-columns: 1fr;
   }
 
   .topo h1 {

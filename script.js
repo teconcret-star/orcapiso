@@ -33,6 +33,16 @@ const IFRAME_CLEANUP_DELAY_MS = 600;
 const IFRAME_PRINT_FALLBACK_TIMEOUT_MS = 2000;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
+const EQUIPAMENTOS_TIPO_PROPRIOS = "proprios";
+const EQUIPAMENTOS_TIPO_ALUGADOS = "alugados";
+const EQUIPAMENTOS_ALUGADOS_OPCOES = [
+  { value: "acabadora_simples", label: "Acabadora simples" },
+  { value: "acabadora_dupla", label: "Acabadora dupla" },
+  { value: "maquina_corte", label: "Máquina de corte" },
+  { value: "maquina_laser", label: "Máquina laser" },
+  { value: "nivel_laser", label: "Nível laser" },
+  { value: "regua_vibratoria", label: "Régua vibratória" }
+];
 const DEFAULT_MACHINE_DATABASE = {
   rendimentoFacasM2: 300,
   precoFaca: 180,
@@ -123,6 +133,15 @@ function normalizeFilterText(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function getFilterQuery(fieldId) {
@@ -380,6 +399,130 @@ function atualizarCampoPisoTela({ preserveValueWhenDisabled = false } = {}) {
   infoPisoTelaEl.textContent = comTela
     ? "Informe o valor por m² da tela para somar ao custo final do piso."
     : "Disponível apenas quando o piso for com tela.";
+}
+
+function getEquipamentosTipo() {
+  return $("equipamentosTipo").value === EQUIPAMENTOS_TIPO_ALUGADOS
+    ? EQUIPAMENTOS_TIPO_ALUGADOS
+    : EQUIPAMENTOS_TIPO_PROPRIOS;
+}
+
+function sanitizeEquipamentoAlugadoTipo(value) {
+  return EQUIPAMENTOS_ALUGADOS_OPCOES.some((item) => item.value === value)
+    ? value
+    : EQUIPAMENTOS_ALUGADOS_OPCOES[0].value;
+}
+
+function parseEquipamentosAlugadosItems(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => ({
+      tipo: sanitizeEquipamentoAlugadoTipo(item?.tipo),
+      diaria: toNumber(item?.diaria)
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function getEquipamentosAlugadosItemsSnapshot() {
+  return parseEquipamentosAlugadosItems($("equipamentosAlugadosItems").value);
+}
+
+function setEquipamentosAlugadosItemsSnapshot(items) {
+  $("equipamentosAlugadosItems").value = JSON.stringify(
+    (items || []).map((item) => ({
+      tipo: sanitizeEquipamentoAlugadoTipo(item?.tipo),
+      diaria: toNumber(item?.diaria)
+    }))
+  );
+}
+
+function buildEquipamentosAlugadosOptions(selectedValue) {
+  return EQUIPAMENTOS_ALUGADOS_OPCOES
+    .map((item) => `<option value="${escapeHtml(item.value)}"${item.value === selectedValue ? " selected" : ""}>${escapeHtml(item.label)}</option>`)
+    .join("");
+}
+
+function createEquipamentoAlugadoItem(item = {}) {
+  const tipo = sanitizeEquipamentoAlugadoTipo(item.tipo);
+  const diaria = toNumber(item.diaria);
+  const idSuffix = createUniqueId().replaceAll("-", "");
+  const tipoId = `equipamentoAlugadoTipo_${idSuffix}`;
+  const diariaId = `equipamentoAlugadoDiaria_${idSuffix}`;
+  const totalId = `equipamentoAlugadoTotal_${idSuffix}`;
+  const row = document.createElement("div");
+  row.className = "equipamento-item";
+  row.innerHTML = `
+    <div class="field">
+      <label for="${tipoId}">Equipamento</label>
+      <select id="${tipoId}" class="equipamento-alugado-tipo">
+        ${buildEquipamentosAlugadosOptions(tipo)}
+      </select>
+    </div>
+    <div class="field">
+      <label for="${diariaId}">Valor da diária (R$)</label>
+      <input id="${diariaId}" type="number" class="equipamento-alugado-diaria" min="0" step="0.01" placeholder="0.00" />
+    </div>
+    <div class="field">
+      <label for="${totalId}">Total do item</label>
+      <input id="${totalId}" type="text" class="equipamento-alugado-total" value="${formatMoney(0)}" readonly />
+    </div>
+    <button type="button" class="btn btn-danger btn-inline" data-action="remover-equipamento" aria-label="Remover item de equipamento alugado">Remover</button>
+  `;
+  if (diaria > 0) {
+    row.querySelector(".equipamento-alugado-diaria").value = diaria;
+  }
+  return row;
+}
+
+function readEquipamentosAlugadosFromUI({ dias = toNumber($("dias").value), updateTotals = true } = {}) {
+  const rows = Array.from(document.querySelectorAll("#equipamentosAlugadosList .equipamento-item"));
+  return rows.map((row) => {
+    const tipo = sanitizeEquipamentoAlugadoTipo(row.querySelector(".equipamento-alugado-tipo")?.value);
+    const diaria = toNumber(row.querySelector(".equipamento-alugado-diaria")?.value);
+    const totalItem = diaria * dias;
+    if (updateTotals) {
+      const totalField = row.querySelector(".equipamento-alugado-total");
+      if (totalField) totalField.value = formatMoney(totalItem);
+    }
+    return { tipo, diaria, totalItem };
+  });
+}
+
+function renderEquipamentosAlugadosItems(items = []) {
+  const list = $("equipamentosAlugadosList");
+  const normalizedItems = (items.length ? items : [{ tipo: EQUIPAMENTOS_ALUGADOS_OPCOES[0].value, diaria: 0 }])
+    .map((item) => ({
+      tipo: sanitizeEquipamentoAlugadoTipo(item.tipo),
+      diaria: toNumber(item.diaria)
+    }));
+
+  list.innerHTML = "";
+  normalizedItems.forEach((item) => {
+    list.appendChild(createEquipamentoAlugadoItem(item));
+  });
+  const itemsFromUI = readEquipamentosAlugadosFromUI({ updateTotals: true });
+  setEquipamentosAlugadosItemsSnapshot(itemsFromUI);
+}
+
+function atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden = true, syncFromSnapshot = false } = {}) {
+  const section = $("equipamentosAlugadosSection");
+  const alugados = getEquipamentosTipo() === EQUIPAMENTOS_TIPO_ALUGADOS;
+  if (!section) return;
+
+  section.hidden = !alugados;
+
+  if (alugados && (syncFromSnapshot || !$("equipamentosAlugadosList").children.length)) {
+    renderEquipamentosAlugadosItems(getEquipamentosAlugadosItemsSnapshot());
+  }
+
+  if (!alugados && !preserveValuesWhenHidden) {
+    renderEquipamentosAlugadosItems([]);
+    $("equipamentosAlugadosObservacao").value = "";
+  }
 }
 
 async function buscarDadosCep(cep) {
@@ -789,6 +932,9 @@ function proposalFieldsSnapshot() {
     "terraplanagemTotal",
     "pisoTela",
     "valorTelaM2",
+    "equipamentosTipo",
+    "equipamentosAlugadosItems",
+    "equipamentosAlugadosObservacao",
     "outrosCustos",
     "lucro",
     "viagens",
@@ -815,6 +961,7 @@ function applyProposalSnapshot(snapshot = {}) {
   });
   atualizarModoFuncionarios();
   atualizarCampoPisoTela({ preserveValueWhenDisabled: true });
+  atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
   calcularOrcamento();
 }
 
@@ -1246,6 +1393,14 @@ function calcularOrcamento() {
   const pisoComTela = $("pisoTela").value === "com_tela";
   const valorTelaM2 = pisoComTela ? toNumber($("valorTelaM2").value) : 0;
   const custoTelaTotal = metragem > 0 ? valorTelaM2 * metragem : 0;
+  const equipamentosTipo = getEquipamentosTipo();
+  const equipamentosAlugados = equipamentosTipo === EQUIPAMENTOS_TIPO_ALUGADOS
+    ? readEquipamentosAlugadosFromUI({ dias, updateTotals: true })
+    : [];
+  setEquipamentosAlugadosItemsSnapshot(equipamentosAlugados);
+  const custoEquipamentosAlugados = equipamentosAlugados
+    .reduce((total, item) => total + item.totalItem, 0);
+  const observacaoEquipamentosAlugados = $("equipamentosAlugadosObservacao").value.trim();
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
   const machineDb = getMachineDatabase();
@@ -1291,6 +1446,7 @@ function calcularOrcamento() {
     + encargos
     + terraplanagemTotal
     + custoTelaTotal
+    + custoEquipamentosAlugados
     + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
   const total = subtotal + valorLucro;
@@ -1322,6 +1478,7 @@ function calcularOrcamento() {
   $("resCombustivelMaquinas").textContent = formatMoney(custoCombustivelMaquinas);
   $("resEncargos").textContent = formatMoney(encargos);
   $("resOutros").textContent = formatMoney(outrosCustos);
+  $("resEquipamentosAlugados").textContent = formatMoney(custoEquipamentosAlugados);
   $("resSubtotal").textContent = formatMoney(subtotal);
   $("resLucro").textContent = formatMoney(valorLucro);
   $("resTotal").textContent = formatMoney(total);
@@ -1331,6 +1488,9 @@ function calcularOrcamento() {
   $("prevValidade").textContent = $("propostaValidade").value.trim() || "-";
   $("prevPrazo").textContent = $("propostaPrazo").value.trim() || "-";
   $("prevPagamento").textContent = $("propostaPagamento").value.trim() || "-";
+  $("prevEquipamentosAlugadosObs").textContent = equipamentosTipo === EQUIPAMENTOS_TIPO_ALUGADOS
+    ? (observacaoEquipamentosAlugados || "-")
+    : "-";
   $("prevTextoPadrao").textContent = getTextoPadraoProposta();
   $("prevObservacoes").textContent = `Observações: ${$("propostaObservacoes").value.trim() || "-"}`;
   $("prevVendedorNome").textContent = profile.nomeVendedor || currentUser?.name || "-";
@@ -1375,6 +1535,9 @@ function limparCampos() {
     "terraplanagemTotal",
     "pisoTela",
     "valorTelaM2",
+    "equipamentosTipo",
+    "equipamentosAlugadosItems",
+    "equipamentosAlugadosObservacao",
     "outrosCustos",
     "lucro",
     "propostaTitulo",
@@ -1396,10 +1559,12 @@ function limparCampos() {
   $("quantidadeVeiculos").value = 1;
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
   $("pisoTela").value = "sem_tela";
+  $("equipamentosTipo").value = EQUIPAMENTOS_TIPO_PROPRIOS;
   $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   editingProposalId = "";
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
+  atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: false, syncFromSnapshot: true });
   atualizarTextoBotaoProposta();
   if (currentUserId) {
     localStorage.removeItem(getDraftStorageKey());
@@ -1872,6 +2037,7 @@ function atualizarInterfaceAutenticada() {
   $("machineDbForm").hidden = true;
   $("btnAbrirBancoDados").textContent = "Abrir banco de dados";
   atualizarModoFuncionarios({ preserveManualValue: false });
+  atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
   carregarRascunhoLocal();
   if (!$("propostaTextoPadrao").value.trim()) {
     $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
@@ -1986,6 +2152,41 @@ function bindStaticEvents() {
     salvarRascunhoLocal();
   });
 
+  $("equipamentosTipo").addEventListener("change", () => {
+    atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
+    calcularOrcamento();
+    salvarRascunhoLocal();
+  });
+
+  $("btnAdicionarEquipamentoAlugado").addEventListener("click", () => {
+    const list = $("equipamentosAlugadosList");
+    const row = createEquipamentoAlugadoItem();
+    list.appendChild(row);
+    row.querySelector(".equipamento-alugado-tipo")?.focus();
+    calcularOrcamento();
+    salvarRascunhoLocal();
+  });
+
+  $("equipamentosAlugadosList").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action='remover-equipamento']");
+    if (!button) return;
+    const row = button.closest(".equipamento-item");
+    if (!row) return;
+    row.remove();
+    if (!$("equipamentosAlugadosList").children.length) {
+      $("equipamentosAlugadosList").appendChild(createEquipamentoAlugadoItem());
+    }
+    calcularOrcamento();
+    salvarRascunhoLocal();
+  });
+
+  ["input", "change"].forEach((eventName) => {
+    $("equipamentosAlugadosList").addEventListener(eventName, () => {
+      calcularOrcamento();
+      salvarRascunhoLocal();
+    });
+  });
+
   $("funcionarios").addEventListener("input", () => {
     if (getModoFuncionarios() === WORKER_MODE_MANUAL) {
       calcularOrcamento();
@@ -2016,6 +2217,7 @@ function bindStaticEvents() {
     "hotelFuncionario",
     "terraplanagemTotal",
     "valorTelaM2",
+    "equipamentosAlugadosObservacao",
     "outrosCustos",
     "lucro",
     "propostaTitulo",
@@ -2098,6 +2300,7 @@ async function init() {
   atualizarTextoBotaoProposta();
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
+  atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
   if (!$("propostaTextoPadrao").value.trim()) {
     $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   }
