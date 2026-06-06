@@ -14,6 +14,20 @@ const ROLE_SELLER = "seller";
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "password2026";
 const PASSWORD_ITERATIONS = 120000;
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDPBCd-rC-Y9L9DIzF0gW20G_B_Ydn5RKM",
+  authDomain: "orcapiso.firebaseapp.com",
+  databaseURL: "https://orcapiso-default-rtdb.firebaseio.com",
+  projectId: "orcapiso",
+  storageBucket: "orcapiso.firebasestorage.app",
+  messagingSenderId: "966600923508",
+  appId: "1:966600923508:web:a42bfF27241586535b3421",
+  measurementId: "G-Z6QWZ7LWGG"
+};
+const FIREBASE_ROOT_PATH = "orcamentoPiso";
+const FIREBASE_USERS_PATH = `${FIREBASE_ROOT_PATH}/users`;
+const FIREBASE_PROPOSALS_PATH = `${FIREBASE_ROOT_PATH}/proposals`;
+const FIREBASE_MACHINE_DB_PATH = `${FIREBASE_ROOT_PATH}/machineDatabase`;
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
@@ -60,6 +74,8 @@ let currentUserId = "";
 let currentUser = null;
 let printProposalPendingCleanup = false;
 let printCleanupRetryTimeoutId = null;
+let firebaseDb = null;
+let firebaseSyncEnabled = false;
 
 function toNumber(value) {
   const number = parseFloat(value);
@@ -122,6 +138,68 @@ function writeJsonStorage(key, value) {
   } catch {
     showToast("Não foi possível salvar os dados neste aparelho.", true);
     return false;
+  }
+}
+
+function initializeFirebaseConnection() {
+  if (!window.firebase) return false;
+
+  try {
+    if (!window.firebase.apps?.length) {
+      window.firebase.initializeApp(FIREBASE_CONFIG);
+    }
+    firebaseDb = window.firebase.database();
+    firebaseSyncEnabled = true;
+    return true;
+  } catch (error) {
+    console.error("Falha ao inicializar Firebase:", error);
+    firebaseDb = null;
+    firebaseSyncEnabled = false;
+    return false;
+  }
+}
+
+function getFirebaseRef(path) {
+  if (!firebaseSyncEnabled || !firebaseDb) return null;
+  return firebaseDb.ref(path);
+}
+
+async function readFirebasePath(path, fallback) {
+  const ref = getFirebaseRef(path);
+  if (!ref) return fallback;
+  const snapshot = await ref.once("value");
+  return snapshot.exists() ? snapshot.val() : fallback;
+}
+
+function queueFirebaseWrite(path, value) {
+  const ref = getFirebaseRef(path);
+  if (!ref) return;
+  ref.set(value).catch((error) => {
+    console.error(`Falha ao sincronizar ${path}:`, error);
+  });
+}
+
+async function bootstrapStorageFromFirebase() {
+  if (!firebaseSyncEnabled) return;
+
+  try {
+    const [users, proposals, machineDb] = await Promise.all([
+      readFirebasePath(FIREBASE_USERS_PATH, null),
+      readFirebasePath(FIREBASE_PROPOSALS_PATH, null),
+      readFirebasePath(FIREBASE_MACHINE_DB_PATH, null)
+    ]);
+
+    if (users && Array.isArray(users)) {
+      writeJsonStorage(USERS_STORAGE_KEY, users);
+    }
+    if (proposals && Array.isArray(proposals)) {
+      writeJsonStorage(PROPOSALS_STORAGE_KEY, proposals);
+    }
+    if (machineDb && typeof machineDb === "object") {
+      writeJsonStorage(MACHINE_DB_STORAGE_KEY, machineDb);
+    }
+  } catch (error) {
+    console.error("Falha ao carregar dados do Firebase:", error);
   }
 }
 
@@ -316,7 +394,9 @@ function getUsers() {
 }
 
 function saveUsers(list) {
-  return writeJsonStorage(USERS_STORAGE_KEY, list);
+  const success = writeJsonStorage(USERS_STORAGE_KEY, list);
+  if (success) queueFirebaseWrite(FIREBASE_USERS_PATH, list);
+  return success;
 }
 
 function getSavedProposals() {
@@ -324,7 +404,9 @@ function getSavedProposals() {
 }
 
 function saveProposals(list) {
-  return writeJsonStorage(PROPOSALS_STORAGE_KEY, list);
+  const success = writeJsonStorage(PROPOSALS_STORAGE_KEY, list);
+  if (success) queueFirebaseWrite(FIREBASE_PROPOSALS_PATH, list);
+  return success;
 }
 
 function normalizeMachineDatabase(data = {}) {
@@ -369,7 +451,10 @@ function getMachineDatabase() {
 }
 
 function saveMachineDatabase(data) {
-  return writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizeMachineDatabase(data));
+  const normalized = normalizeMachineDatabase(data);
+  const success = writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalized);
+  if (success) queueFirebaseWrite(FIREBASE_MACHINE_DB_PATH, normalized);
+  return success;
 }
 
 function applyMachineDatabaseToForm() {
@@ -1806,6 +1891,8 @@ function bindStaticEvents() {
 
 async function init() {
   bindStaticEvents();
+  initializeFirebaseConnection();
+  await bootstrapStorageFromFirebase();
   await ensureAdminExists();
   applyMachineDatabaseToForm();
   updateAppVisibility();
