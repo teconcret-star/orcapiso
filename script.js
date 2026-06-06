@@ -242,21 +242,35 @@ function writeJsonStorage(key, value) {
   }
 }
 
+function updateFirebaseStatus(connected) {
+  const el = $("firebaseStatus");
+  if (!el) return;
+  el.textContent = connected ? "☁ Firebase: conectado" : "⚠ Firebase: local";
+  el.className = connected ? "firebase-status firebase-status-ok" : "firebase-status firebase-status-off";
+  el.title = connected
+    ? "Dados sincronizados com o servidor"
+    : "Sem conexão com o servidor — dados salvos apenas neste aparelho";
+}
+
 function initializeFirebaseConnection() {
-  if (!window.firebase) return false;
+  if (!window.firebase) {
+    updateFirebaseStatus(false);
+    return false;
+  }
 
   try {
     if (!window.firebase.apps?.length) {
       window.firebase.initializeApp(FIREBASE_CONFIG);
     }
     firestoreDb = window.firebase.firestore();
-    firestoreDb.settings({ experimentalForceLongPolling: true });
     firebaseSyncEnabled = true;
+    updateFirebaseStatus(true);
     return true;
   } catch (error) {
     console.error("Falha ao inicializar Firebase:", error);
     firestoreDb = null;
     firebaseSyncEnabled = false;
+    updateFirebaseStatus(false);
     return false;
   }
 }
@@ -283,6 +297,54 @@ function syncFirestoreDoc(docId, value) {
   if (!ref) return;
   ref.set({ data: value }).catch((error) => {
     console.error(`Falha ao sincronizar ${docId}:`, error);
+  });
+}
+
+function subscribeFirestoreChanges() {
+  if (!firebaseSyncEnabled || !firestoreDb) return;
+
+  const col = firestoreDb.collection(FIRESTORE_COLLECTION);
+
+  col.doc(FIRESTORE_USERS_DOC).onSnapshot((snap) => {
+    if (!snap.exists) return;
+    const data = snap.data()?.data;
+    if (!Array.isArray(data)) return;
+    writeJsonStorage(USERS_STORAGE_KEY, data);
+    if (currentUserId) {
+      refreshCurrentUser();
+      renderUsersTable();
+      updateSessionInfo();
+    }
+  }, (error) => {
+    console.error("Erro ao escutar usuários:", error);
+    updateFirebaseStatus(false);
+  });
+
+  col.doc(FIRESTORE_PROPOSALS_DOC).onSnapshot((snap) => {
+    if (!snap.exists) return;
+    const data = snap.data()?.data;
+    if (!Array.isArray(data)) return;
+    writeJsonStorage(PROPOSALS_STORAGE_KEY, data);
+    if (currentUserId) {
+      renderizarTabelaPropostas();
+      renderDashboard();
+    }
+  }, (error) => {
+    console.error("Erro ao escutar propostas:", error);
+    updateFirebaseStatus(false);
+  });
+
+  col.doc(FIRESTORE_MACHINE_DB_DOC).onSnapshot((snap) => {
+    if (!snap.exists) return;
+    const data = snap.data()?.data;
+    if (!data || typeof data !== "object" || Array.isArray(data)) return;
+    writeJsonStorage(MACHINE_DB_STORAGE_KEY, data);
+    if (currentUserId) {
+      applyMachineDatabaseToForm();
+    }
+  }, (error) => {
+    console.error("Erro ao escutar banco de máquinas:", error);
+    updateFirebaseStatus(false);
   });
 }
 
@@ -2668,6 +2730,17 @@ function bindStaticEvents() {
   });
   document.addEventListener("visibilitychange", () => {
     tentarLimparEstadoImpressao();
+    if (!document.hidden && firebaseSyncEnabled && currentUserId) {
+      bootstrapStorageFromFirebase().then(() => {
+        if (currentUserId) {
+          refreshCurrentUser();
+          renderUsersTable();
+          renderizarTabelaPropostas();
+          renderDashboard();
+          applyMachineDatabaseToForm();
+        }
+      });
+    }
   });
 }
 
@@ -2675,6 +2748,7 @@ async function init() {
   bindStaticEvents();
   initializeFirebaseConnection();
   await bootstrapStorageFromFirebase();
+  subscribeFirestoreChanges();
   await ensureAdminExists();
   applyMachineDatabaseToForm();
   updateAppVisibility();

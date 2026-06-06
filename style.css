@@ -218,6 +218,26 @@ body.auth-view .auth-card h2 {
   gap: 12px;
 }
 
+.firebase-status {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: default;
+}
+
+.firebase-status-ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.firebase-status-off {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .tabs {
   display: flex;
   gap: 10px;
