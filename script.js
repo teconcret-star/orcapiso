@@ -931,6 +931,12 @@ function isAdmin(user = currentUser) {
   return user?.role === ROLE_ADMIN;
 }
 
+function requireAdminForUserManagement() {
+  if (isAdmin()) return true;
+  showToast("Somente administradores podem gerenciar usuários.", true);
+  return false;
+}
+
 function getCurrentUserFromStorage() {
   return getUsers().find((item) => item.id === currentUserId) || null;
 }
@@ -1670,10 +1676,7 @@ function renderUsersTable() {
 }
 
 function carregarUsuarioPorId(id) {
-  if (!isAdmin()) {
-    showToast("Somente administradores podem gerenciar usuários.", true);
-    return;
-  }
+  if (!requireAdminForUserManagement()) return;
 
   const user = getUsers().find((item) => item.id === id);
   if (!user) return;
@@ -1696,10 +1699,7 @@ function countActiveAdmins(users) {
 
 async function salvarUsuario(event) {
   event?.preventDefault();
-  if (!isAdmin()) {
-    showToast("Somente administradores podem gerenciar usuários.", true);
-    return;
-  }
+  if (!requireAdminForUserManagement()) return;
 
   const formData = getUserFormData();
   const users = getUsers();
@@ -1729,7 +1729,7 @@ async function salvarUsuario(event) {
   const creatingUser = !editingUserId;
 
   if (creatingUser && formData.role === ROLE_ADMIN) {
-    showToast("Cadastre usuários somente como vendedor.", true);
+    showToast("Não é permitido criar usuários com perfil de administrador.", true);
     return;
   }
 
@@ -1742,14 +1742,14 @@ async function salvarUsuario(event) {
       return;
     }
 
-    const currentRole = users[index].role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_SELLER;
+    const currentRole = users[index].role;
     if (currentRole === ROLE_ADMIN && formData.role !== ROLE_ADMIN) {
       showToast("Administradores não podem ser convertidos para vendedor.", true);
       return;
     }
 
     if (currentRole === ROLE_SELLER && formData.role === ROLE_ADMIN) {
-      showToast("Cadastre usuários somente como vendedor.", true);
+      showToast("Não é permitido promover vendedores para administrador.", true);
       return;
     }
 
@@ -1811,10 +1811,7 @@ async function salvarUsuario(event) {
 }
 
 function alternarStatusUsuario(id) {
-  if (!isAdmin()) {
-    showToast("Somente administradores podem gerenciar usuários.", true);
-    return;
-  }
+  if (!requireAdminForUserManagement()) return;
 
   const users = getUsers();
   const index = users.findIndex((user) => user.id === id);
