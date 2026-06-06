@@ -113,7 +113,38 @@ let chartPropostasPorStatus = null;
 let chartValorPorStatus = null;
 
 function toNumber(value) {
-  const number = parseFloat(value);
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+
+  const normalizedRaw = raw
+    .replace(/\s/g, "")
+    .replace(/[^\d,.-]/g, "");
+
+  let normalized = normalizedRaw;
+  const lastComma = normalized.lastIndexOf(",");
+  const lastDot = normalized.lastIndexOf(".");
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    normalized = lastComma > lastDot
+      ? normalized.replace(/\./g, "").replace(",", ".")
+      : normalized.replace(/,/g, "");
+  } else if (lastComma >= 0) {
+    const commasCount = (normalized.match(/,/g) || []).length;
+    normalized = commasCount > 1
+      ? normalized.replace(/,/g, "")
+      : normalized.replace(",", ".");
+  } else if (lastDot >= 0) {
+    const dotsCount = (normalized.match(/\./g) || []).length;
+    if (dotsCount > 1) {
+      normalized = normalized.replace(/\./g, "");
+    }
+  }
+
+  const number = parseFloat(normalized);
   return Number.isNaN(number) ? 0 : number;
 }
 
@@ -1119,6 +1150,21 @@ function renderDashboard() {
   const users = getUsers().map(mergeUserProfile);
   const sellers = users.filter((user) => user.role === ROLE_SELLER);
   const proposals = getSavedProposals();
+  const sellersByEmail = new Map(
+    sellers
+      .map((seller) => [normalizeEmail(seller.email), seller.id])
+      .filter(([email]) => email)
+  );
+  const sellersByName = new Map(
+    sellers
+      .map((seller) => [normalizeFilterText(seller.name), seller.id])
+      .filter(([name]) => name)
+  );
+  const getSellerIdFromProposal = (proposal) =>
+    proposal.ownerId
+    || sellersByEmail.get(normalizeEmail(proposal.ownerEmail))
+    || sellersByName.get(normalizeFilterText(proposal.ownerName))
+    || "";
   const statusSummary = {
     [PROPOSAL_STATUS_EM_ANDAMENTO]: { count: 0, value: 0 },
     [PROPOSAL_STATUS_PERDIDA]: { count: 0, value: 0 },
@@ -1165,7 +1211,7 @@ function renderDashboard() {
   const chartValores = [];
 
   sellers.forEach((seller) => {
-    const sellerProposals = proposals.filter((item) => item.ownerId === seller.id);
+    const sellerProposals = proposals.filter((item) => getSellerIdFromProposal(item) === seller.id);
     const totalValue = sellerProposals.reduce((acc, item) => acc + toNumber(item.total), 0);
     const averageTicket = sellerProposals.length ? totalValue / sellerProposals.length : 0;
     const latestTimestamp = sellerProposals.reduce((latest, item) => Math.max(latest, toNumber(item.timestamp)), 0);
