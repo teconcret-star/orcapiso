@@ -117,16 +117,6 @@
             </div>
 
             <div class="field">
-              <label for="cepOrigem">CEP de origem (base)</label>
-              <input type="text" id="cepOrigem" placeholder="Ex.: 01001-000" />
-            </div>
-
-            <div class="field full">
-              <label for="enderecoOrigem">Endereço da unidade base</label>
-              <input type="text" id="enderecoOrigem" placeholder="Ex.: Rua Base, 100 - Cidade/UF" />
-            </div>
-
-            <div class="field">
               <label for="cep">CEP da obra</label>
               <input type="text" id="cep" placeholder="Ex.: 20040-030" />
             </div>
@@ -137,7 +127,7 @@
             </div>
 
             <div class="field full">
-              <button id="btnBuscarCep" class="btn btn-secondary btn-inline">Buscar CEPs e preencher endereços</button>
+              <button id="btnBuscarCep" class="btn btn-secondary btn-inline">Buscar CEP da obra e preencher endereço</button>
             </div>
 
             <div class="field">
@@ -196,7 +186,7 @@
             </div>
 
             <div class="field">
-              <label for="funcionarios">Funcionários considerados</label>
+              <label for="funcionarios">Funcionários necessários</label>
               <small id="infoFuncionarios" class="help-text">Regra automática: 1 funcionário a cada 100 m²</small>
               <input type="number" id="funcionarios" min="0" step="1" readonly aria-describedby="infoFuncionarios" />
             </div>
@@ -219,6 +209,11 @@
             <div class="field">
               <label for="alimentacaoFuncionario">Alimentação por funcionário/dia (R$)</label>
               <input type="number" id="alimentacaoFuncionario" min="0" step="0.01" placeholder="0,00" />
+            </div>
+
+            <div class="field">
+              <label for="hotelFuncionario">Estadia de hotel por funcionário/dia (R$)</label>
+              <input type="number" id="hotelFuncionario" min="0" step="0.01" placeholder="0,00" />
             </div>
           </div>
         </section>
@@ -336,6 +331,11 @@
               <div class="resultado-item">
                 <span>Custo com alimentação</span>
                 <strong id="resAlimentacao">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Custo com estadia (hotel)</span>
+                <strong id="resHotel">R$ 0,00</strong>
               </div>
 
               <div class="resultado-item">
