@@ -1716,9 +1716,11 @@ function renderUsersTable() {
     btnExcluir.textContent = "Excluir";
     btnExcluir.disabled = !canDeleteUser(user);
     if (btnExcluir.disabled) {
-      btnExcluir.title = user.id === currentUserId
-        ? "Você não pode excluir o próprio usuário."
-        : "Somente o administrador que cadastrou este usuário pode excluí-lo.";
+      btnExcluir.title = !isAdmin()
+        ? "Somente administradores podem excluir usuários."
+        : user.id === currentUserId
+          ? "Você não pode excluir o próprio usuário."
+          : "Somente o administrador que cadastrou este usuário pode excluí-lo.";
     }
 
     actions.append(btnEditar, btnAlternar, btnExcluir);
@@ -2980,8 +2982,11 @@ function bindStaticEvents() {
 
   window.addEventListener("online", () => {
     reconnectFirebase().then((connected) => {
-      if (!connected) scheduleFirebaseReconnect();
-      if (connected && currentUserId) refreshAppFromStorage();
+      if (!connected) {
+        scheduleFirebaseReconnect();
+      } else if (currentUserId) {
+        refreshAppFromStorage();
+      }
     }).catch((error) => {
       handleFirebaseConnectionError("Falha ao sincronizar dados ao voltar a conexão:", error);
     });
