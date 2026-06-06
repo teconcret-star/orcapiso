@@ -257,6 +257,10 @@ function removeStorageItem(key) {
   localStorage.removeItem(key);
 }
 
+function loadUsersFromStorage() {
+  return normalizeUsersForStorage(readJsonStorage(USERS_STORAGE_KEY, []));
+}
+
 function getDraftFirestoreDocId(userId = currentUserId) {
   return userId ? `${FIRESTORE_DRAFT_DOC_PREFIX}${userId}` : "";
 }
@@ -523,7 +527,8 @@ function subscribeFirestoreChanges() {
       if (!snap.exists) return;
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
-      usersCache = data;
+      usersCache = normalizeUsersForStorage(data);
+      writeJsonStorage(USERS_STORAGE_KEY, usersCache);
       if (currentUserId) {
         refreshCurrentUser();
         renderUsersTable();
@@ -615,7 +620,14 @@ async function bootstrapStorageFromFirebase() {
     ]);
 
     if (users && Array.isArray(users)) {
-      usersCache = users;
+      usersCache = normalizeUsersForStorage(users);
+      writeJsonStorage(USERS_STORAGE_KEY, usersCache);
+    } else {
+      const localUsers = loadUsersFromStorage();
+      if (localUsers.length) {
+        usersCache = localUsers;
+        syncFirestoreDoc(FIRESTORE_USERS_DOC, localUsers);
+      }
     }
 
     if (proposals && Array.isArray(proposals)) {
@@ -981,11 +993,16 @@ async function preencherEnderecosPorCep() {
 }
 
 function getUsers() {
+  if (!usersCache.length) {
+    usersCache = loadUsersFromStorage();
+  }
   return normalizeUsersForStorage(usersCache);
 }
 
 function saveUsers(list) {
   const normalizedList = normalizeUsersForStorage(list);
+  const success = writeJsonStorage(USERS_STORAGE_KEY, normalizedList);
+  if (!success) return false;
   usersCache = normalizedList;
   syncFirestoreDoc(FIRESTORE_USERS_DOC, normalizedList);
   return true;
@@ -1210,6 +1227,61 @@ async function ensureAdminExists() {
   };
 
   saveUsers([adminUser]);
+}
+
+async function ensureDefaultAdminAccess(email, password) {
+  if (email !== DEFAULT_ADMIN_USERNAME || password !== DEFAULT_ADMIN_PASSWORD) {
+    return null;
+  }
+
+  const users = getUsers();
+  const index = users.findIndex((user) => user.email === DEFAULT_ADMIN_USERNAME);
+  const now = Date.now();
+
+  if (index >= 0) {
+    const recoveredUser = {
+      ...users[index],
+      name: users[index].name || "Administrador",
+      email: DEFAULT_ADMIN_USERNAME,
+      role: ROLE_ADMIN,
+      active: true,
+      ...(await createPasswordCredentials(DEFAULT_ADMIN_PASSWORD)),
+      mustChangePassword: true,
+      profile: {
+        ...buildDefaultProfile({
+          name: users[index].name || "Administrador",
+          email: DEFAULT_ADMIN_USERNAME
+        }),
+        ...(users[index].profile || {})
+      },
+      updatedAt: now
+    };
+    const nextUsers = users.map((user, userIndex) => (userIndex === index ? recoveredUser : user));
+    if (!saveUsers(nextUsers)) return null;
+    return nextUsers[index];
+  }
+
+  const adminUser = {
+    id: createUniqueId(),
+    name: "Administrador",
+    email: DEFAULT_ADMIN_USERNAME,
+    role: ROLE_ADMIN,
+    active: true,
+    ...(await createPasswordCredentials(DEFAULT_ADMIN_PASSWORD)),
+    mustChangePassword: true,
+    profile: buildDefaultProfile({
+      name: "Administrador",
+      email: DEFAULT_ADMIN_USERNAME
+    }),
+    createdBy: null,
+    createdByName: "Sistema",
+    createdByEmail: "",
+    createdAt: now,
+    updatedAt: now
+  };
+
+  if (!saveUsers([adminUser, ...users])) return null;
+  return adminUser;
 }
 
 function updateSessionInfo() {
@@ -2788,7 +2860,8 @@ async function handleLogin(event) {
     return;
   }
 
-  const user = getUsers().find((item) => item.email === email);
+  const recoveredAdminUser = await ensureDefaultAdminAccess(email, password);
+  const user = recoveredAdminUser || getUsers().find((item) => item.email === email);
   if (!user) {
     showToast("Usuário não encontrado.", true);
     return;
