@@ -106,7 +106,7 @@ function updateDraftStatus(message, isError = false) {
   status.classList.toggle("error", isError);
 }
 
-async function hashPassword(password) {
+async function hashLegacyPassword(password) {
   const data = new TextEncoder().encode(password);
   const digest = await window.crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(digest))
@@ -159,7 +159,7 @@ async function verifyPassword(user, password) {
     return derivedHash === user.passwordHash;
   }
 
-  const legacyHash = await hashPassword(password);
+  const legacyHash = await hashLegacyPassword(password);
   return legacyHash === user.passwordHash;
 }
 
@@ -390,7 +390,7 @@ function updateSessionInfo() {
   $("sessionUserMeta").textContent = `${formatRole(currentUser.role)} • ${currentUser.email} • ${currentUser.active ? "Ativo" : "Inativo"}`;
   $("senhaUsuarioEmail").value = currentUser.email || "";
   $("securityNotice").hidden = !currentUser.mustChangePassword;
-  $("securityNotice").textContent = "Segurança: esta conta está com senha provisória. Troque sua senha para continuar usando o sistema com segurança.";
+  $("securityNotice").textContent = "Para sua segurança, altere sua senha provisória em Meu Perfil.";
 }
 
 function updateTabVisibility() {
