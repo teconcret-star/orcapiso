@@ -29,6 +29,14 @@ const DEFAULT_MACHINE_DATABASE = {
   percentualSimples: 30,
   percentualCorte: 20
 };
+/**
+ * Preset de referência de mercado para parâmetros por m².
+ * Unidades:
+ * - rendimento* em m²/unidade
+ * - preco* em R$
+ * - consumo* em litros/m²
+ * - percentual* em %
+ */
 const MACHINE_DATABASE_PRESETS = {
   marketBestPractices: {
     rendimentoFacasM2: 280,
@@ -381,7 +389,10 @@ function applyMachineDatabaseValuesToForm(data) {
 }
 
 function aplicarEstimativaMercadoPreCadastrada() {
-  if (!isAdmin()) return;
+  if (!isAdmin()) {
+    showToast("Somente administradores podem aplicar estimativas pré-cadastradas.", true);
+    return;
+  }
   const presetId = $("presetEstimativaMercado").value;
   const preset = MACHINE_DATABASE_PRESETS[presetId];
   if (!preset) {
