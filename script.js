@@ -33,6 +33,7 @@ const IFRAME_CLEANUP_DELAY_MS = 600;
 const IFRAME_PRINT_FALLBACK_TIMEOUT_MS = 2000;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
+const DEFAULT_IMPOSTO_PERCENTUAL = "1";
 const EQUIPAMENTOS_TIPO_PROPRIOS = "proprios";
 const EQUIPAMENTOS_TIPO_ALUGADOS = "alugados";
 const EQUIPAMENTOS_ALUGADOS_OPCOES = [
@@ -1566,7 +1567,7 @@ function limparCampos() {
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
   $("pisoTela").value = "sem_tela";
   $("equipamentosTipo").value = EQUIPAMENTOS_TIPO_PROPRIOS;
-  $("impostoPercentual").value = "1";
+  $("impostoPercentual").value = DEFAULT_IMPOSTO_PERCENTUAL;
   $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   editingProposalId = "";
   atualizarModoFuncionarios({ preserveManualValue: false });
