@@ -10,6 +10,8 @@ const WORKER_MODE_AUTO = "auto";
 const WORKER_MODE_MANUAL = "manual";
 const ROLE_ADMIN = "admin";
 const ROLE_SELLER = "seller";
+const DEFAULT_ADMIN_EMAIL = "admin@example.local";
+const DEFAULT_ADMIN_PASSWORD = "TroqueAgora#2026";
 const PASSWORD_ITERATIONS = 120000;
 const PRINT_CLASS_CLEANUP_DELAY_MS = 500;
 const DEFAULT_STANDARD_TEXT =
@@ -359,14 +361,14 @@ async function ensureAdminExists() {
   const adminUser = {
     id: createUniqueId(),
     name: "Administrador",
-    email: "admin@orcamento.local",
+    email: DEFAULT_ADMIN_EMAIL,
     role: ROLE_ADMIN,
     active: true,
-    ...(await createPasswordCredentials("admin123")),
+    ...(await createPasswordCredentials(DEFAULT_ADMIN_PASSWORD)),
     mustChangePassword: true,
     profile: buildDefaultProfile({
       name: "Administrador",
-      email: "admin@orcamento.local"
+      email: DEFAULT_ADMIN_EMAIL
     }),
     createdAt: now,
     updatedAt: now
@@ -1272,8 +1274,8 @@ async function trocarMinhaSenha(event) {
     return;
   }
 
-  const senhaAtualHash = await hashPassword(senhaAtual);
-  if (senhaAtualHash !== currentUser.passwordHash) {
+  const senhaAtualValida = await verifyPassword(currentUser, senhaAtual);
+  if (!senhaAtualValida) {
     showToast("A senha atual está incorreta.", true);
     return;
   }
