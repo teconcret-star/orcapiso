@@ -460,7 +460,7 @@ function createEquipamentoAlugadoItem(item = {}) {
     </div>
     <div class="field">
       <label>Valor da diária (R$)</label>
-      <input type="number" class="equipamento-alugado-diaria" min="0" step="0.01" placeholder="0.00" value="${diaria > 0 ? diaria : ""}" />
+      <input type="number" class="equipamento-alugado-diaria" min="0" step="0.01" placeholder="0.00" />
     </div>
     <div class="field">
       <label>Total do item</label>
@@ -468,6 +468,9 @@ function createEquipamentoAlugadoItem(item = {}) {
     </div>
     <button type="button" class="btn btn-danger btn-inline" data-action="remover-equipamento" aria-label="Remover item de equipamento alugado">Remover</button>
   `;
+  if (diaria > 0) {
+    row.querySelector(".equipamento-alugado-diaria").value = diaria;
+  }
   return row;
 }
 
