@@ -141,7 +141,8 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&#39;");
+    .replaceAll("'", "&#39;")
+    .replaceAll("/", "&#x2F;");
 }
 
 function getFilterQuery(fieldId) {
@@ -442,7 +443,7 @@ function setEquipamentosAlugadosItemsSnapshot(items) {
 
 function buildEquipamentosAlugadosOptions(selectedValue) {
   return EQUIPAMENTOS_ALUGADOS_OPCOES
-    .map((item) => `<option value="${item.value}"${item.value === selectedValue ? " selected" : ""}>${escapeHtml(item.label)}</option>`)
+    .map((item) => `<option value="${escapeHtml(item.value)}"${item.value === selectedValue ? " selected" : ""}>${escapeHtml(item.label)}</option>`)
     .join("");
 }
 
