@@ -1652,9 +1652,9 @@ function calcularOrcamento() {
     + custoCuraQuimica
     + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
-  const totalSemImposto = subtotal + valorLucro;
-  const valorImposto = totalSemImposto * (impostoPercentual / 100);
-  const total = totalSemImposto;
+  const totalComLucro = subtotal + valorLucro;
+  const valorImposto = totalComLucro * (impostoPercentual / 100);
+  const total = totalComLucro;
   const valorM2 = metragem > 0 ? total / metragem : 0;
   const profile = getProfileFromForm();
 
