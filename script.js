@@ -284,10 +284,15 @@ function refreshAppFromStorage() {
 async function reconnectFirebase() {
   const connected = initializeFirebaseConnection();
   if (!connected) return false;
-  await bootstrapStorageFromFirebase();
-  subscribeFirestoreChanges();
-  if (currentUserId) refreshAppFromStorage();
-  return true;
+  try {
+    await bootstrapStorageFromFirebase();
+    subscribeFirestoreChanges();
+    if (currentUserId) refreshAppFromStorage();
+    return true;
+  } catch (error) {
+    handleFirebaseConnectionError("Falha ao sincronizar dados após reconectar Firebase:", error);
+    return false;
+  }
 }
 
 function scheduleFirebaseReconnect() {
@@ -299,8 +304,13 @@ function scheduleFirebaseReconnect() {
   updateFirebaseStatus(false);
   firebaseReconnectTimeoutId = window.setTimeout(async () => {
     firebaseReconnectTimeoutId = null;
-    const connected = await reconnectFirebase();
-    if (!connected) scheduleFirebaseReconnect();
+    try {
+      const connected = await reconnectFirebase();
+      if (!connected) scheduleFirebaseReconnect();
+    } catch (error) {
+      handleFirebaseConnectionError("Falha ao tentar reconectar Firebase automaticamente:", error);
+      scheduleFirebaseReconnect();
+    }
   }, FIREBASE_RECONNECT_DELAY_MS);
 }
 
