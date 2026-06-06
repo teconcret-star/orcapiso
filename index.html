@@ -39,9 +39,8 @@
           <aside class="auth-tip">
             <h3>Primeiro acesso</h3>
             <p>O sistema cria automaticamente um administrador local.</p>
-            <p><strong>Usuário:</strong> admin</p>
-            <p><strong>Senha:</strong> password2026</p>
-            <small class="help-text">Altere a senha após entrar.</small>
+            <p>Use as credenciais já definidas pela administração para entrar no sistema.</p>
+            <small class="help-text">Se necessário, solicite suporte ao administrador responsável.</small>
           </aside>
         </div>
       </section>
@@ -219,11 +218,6 @@
               </div>
 
               <div class="field">
-                <label for="consumoMaquinas">Consumo de combustível de máquinas (l)</label>
-                <input type="number" id="consumoMaquinas" min="0" step="0.01" placeholder="0,00" />
-              </div>
-
-              <div class="field">
                 <label for="viagens">Quantidade de viagens</label>
                 <input type="number" id="viagens" min="1" step="1" value="1" />
               </div>
@@ -233,6 +227,65 @@
                 <input type="number" id="quantidadeVeiculos" min="1" step="1" value="1" />
               </div>
             </div>
+          </section>
+
+          <section class="card" data-admin-only-block="true">
+            <h2>Banco de dados local de estimativas por m²</h2>
+            <p class="help-text auth-description">Defina os parâmetros usados para estimar facas, discos e combustível das máquinas por área concretada.</p>
+            <div class="acoes">
+              <button id="btnAbrirBancoDados" type="button" class="btn btn-secondary">Abrir banco de dados</button>
+            </div>
+            <form id="machineDbForm" class="grid" hidden>
+              <div class="field">
+                <label for="paramRendimentoFacas">Rendimento por faca (m²/unidade)</label>
+                <input type="number" id="paramRendimentoFacas" min="0.01" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="paramPrecoFaca">Preço por faca (R$)</label>
+                <input type="number" id="paramPrecoFaca" min="0" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="paramRendimentoDisco">Rendimento por disco de flotagem (m²/unidade)</label>
+                <input type="number" id="paramRendimentoDisco" min="0.01" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="paramPrecoDisco">Preço por disco de flotagem (R$)</label>
+                <input type="number" id="paramPrecoDisco" min="0" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="paramConsumoMaquinaDupla">Consumo máquina dupla (litros/m²)</label>
+                <input type="number" id="paramConsumoMaquinaDupla" min="0" step="0.0001" />
+              </div>
+              <div class="field">
+                <label for="paramConsumoMaquinaSimples">Consumo máquina simples (litros/m²)</label>
+                <input type="number" id="paramConsumoMaquinaSimples" min="0" step="0.0001" />
+              </div>
+              <div class="field">
+                <label for="paramConsumoMaquinaCorte">Consumo máquina de corte (litros/m²)</label>
+                <input type="number" id="paramConsumoMaquinaCorte" min="0" step="0.0001" />
+              </div>
+              <div class="field">
+                <label for="paramPercentualMaquinaDupla">Uso máquina dupla (%)</label>
+                <input type="number" id="paramPercentualMaquinaDupla" min="0" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="paramPercentualMaquinaSimples">Uso máquina simples (%)</label>
+                <input type="number" id="paramPercentualMaquinaSimples" min="0" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="paramPercentualMaquinaCorte">Uso máquina de corte (%)</label>
+                <input type="number" id="paramPercentualMaquinaCorte" min="0" step="0.01" />
+              </div>
+              <div class="field full">
+                <small class="help-text">Os percentuais de uso devem somar 100% para uma estimativa equilibrada.</small>
+              </div>
+              <div class="field full">
+                <div class="acoes">
+                  <button id="btnSalvarBancoDados" type="submit" class="btn btn-primary">Salvar parâmetros</button>
+                  <button id="btnRestaurarBancoDados" type="button" class="btn btn-secondary">Restaurar padrão</button>
+                </div>
+              </div>
+            </form>
           </section>
 
           <section class="card">
@@ -458,7 +511,32 @@
                   </div>
 
                   <div class="resultado-item">
-                    <span>Combustível de máquinas</span>
+                    <span>Facas estimadas</span>
+                    <strong id="resFacasQtd">0</strong>
+                  </div>
+
+                  <div class="resultado-item">
+                    <span>Custo com facas</span>
+                    <strong id="resFacasCusto">R$ 0,00</strong>
+                  </div>
+
+                  <div class="resultado-item">
+                    <span>Discos de flotagem estimados</span>
+                    <strong id="resDiscosQtd">0</strong>
+                  </div>
+
+                  <div class="resultado-item">
+                    <span>Custo com discos de flotagem</span>
+                    <strong id="resDiscosCusto">R$ 0,00</strong>
+                  </div>
+
+                  <div class="resultado-item">
+                    <span>Combustível de máquinas (litros)</span>
+                    <strong id="resCombustivelMaquinasLitros">0,00 L</strong>
+                  </div>
+
+                  <div class="resultado-item">
+                    <span>Custo com combustível de máquinas</span>
                     <strong id="resCombustivelMaquinas">R$ 0,00</strong>
                   </div>
 

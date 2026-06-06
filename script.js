@@ -4,6 +4,7 @@ const M2_PER_WORKER = 100;
 const USERS_STORAGE_KEY = "orcamento_usuarios_v1";
 const SESSION_STORAGE_KEY = "orcamento_sessao_v1";
 const PROPOSALS_STORAGE_KEY = "propostas_salvas_v1";
+const MACHINE_DB_STORAGE_KEY = "orcamento_banco_estimativas_v1";
 const LEGACY_DRAFT_STORAGE_KEY = "proposta_rascunho_v1";
 const DRAFT_STORAGE_KEY_PREFIX = "proposta_rascunho_usuario_v1_";
 const WORKER_MODE_AUTO = "auto";
@@ -16,6 +17,18 @@ const PASSWORD_ITERATIONS = 120000;
 const PRINT_CLASS_CLEANUP_DELAY_MS = 500;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
+const DEFAULT_MACHINE_DATABASE = {
+  rendimentoFacasM2: 300,
+  precoFaca: 180,
+  rendimentoDiscoM2: 500,
+  precoDisco: 220,
+  consumoDuplaLitrosM2: 0.11,
+  consumoSimplesLitrosM2: 0.08,
+  consumoCorteLitrosM2: 0.04,
+  percentualDupla: 50,
+  percentualSimples: 30,
+  percentualCorte: 20
+};
 
 let logoDataUrl = "";
 let toastTimeoutId;
@@ -290,6 +303,80 @@ function saveProposals(list) {
   return writeJsonStorage(PROPOSALS_STORAGE_KEY, list);
 }
 
+function normalizeMachineDatabase(data = {}) {
+  const rendimentoFacasM2 = toNumber(data.rendimentoFacasM2) > 0
+    ? toNumber(data.rendimentoFacasM2)
+    : DEFAULT_MACHINE_DATABASE.rendimentoFacasM2;
+  const precoFaca = Math.max(0, toNumber(data.precoFaca));
+  const rendimentoDiscoM2 = toNumber(data.rendimentoDiscoM2) > 0
+    ? toNumber(data.rendimentoDiscoM2)
+    : DEFAULT_MACHINE_DATABASE.rendimentoDiscoM2;
+  const precoDisco = Math.max(0, toNumber(data.precoDisco));
+  const consumoDuplaLitrosM2 = Math.max(0, toNumber(data.consumoDuplaLitrosM2));
+  const consumoSimplesLitrosM2 = Math.max(0, toNumber(data.consumoSimplesLitrosM2));
+  const consumoCorteLitrosM2 = Math.max(0, toNumber(data.consumoCorteLitrosM2));
+  const percentualDupla = Math.max(0, toNumber(data.percentualDupla));
+  const percentualSimples = Math.max(0, toNumber(data.percentualSimples));
+  const percentualCorte = Math.max(0, toNumber(data.percentualCorte));
+  const totalPercentuais = percentualDupla + percentualSimples + percentualCorte;
+
+  if (totalPercentuais <= 0) {
+    return { ...DEFAULT_MACHINE_DATABASE };
+  }
+
+  const fator = 100 / totalPercentuais;
+  return {
+    rendimentoFacasM2,
+    precoFaca,
+    rendimentoDiscoM2,
+    precoDisco,
+    consumoDuplaLitrosM2,
+    consumoSimplesLitrosM2,
+    consumoCorteLitrosM2,
+    percentualDupla: percentualDupla * fator,
+    percentualSimples: percentualSimples * fator,
+    percentualCorte: percentualCorte * fator
+  };
+}
+
+function getMachineDatabase() {
+  const stored = readJsonStorage(MACHINE_DB_STORAGE_KEY, null);
+  return normalizeMachineDatabase(stored || DEFAULT_MACHINE_DATABASE);
+}
+
+function saveMachineDatabase(data) {
+  return writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizeMachineDatabase(data));
+}
+
+function applyMachineDatabaseToForm() {
+  const db = getMachineDatabase();
+  $("paramRendimentoFacas").value = String(db.rendimentoFacasM2);
+  $("paramPrecoFaca").value = String(db.precoFaca);
+  $("paramRendimentoDisco").value = String(db.rendimentoDiscoM2);
+  $("paramPrecoDisco").value = String(db.precoDisco);
+  $("paramConsumoMaquinaDupla").value = String(db.consumoDuplaLitrosM2);
+  $("paramConsumoMaquinaSimples").value = String(db.consumoSimplesLitrosM2);
+  $("paramConsumoMaquinaCorte").value = String(db.consumoCorteLitrosM2);
+  $("paramPercentualMaquinaDupla").value = db.percentualDupla.toFixed(2);
+  $("paramPercentualMaquinaSimples").value = db.percentualSimples.toFixed(2);
+  $("paramPercentualMaquinaCorte").value = db.percentualCorte.toFixed(2);
+}
+
+function readMachineDatabaseFromForm() {
+  return {
+    rendimentoFacasM2: toNumber($("paramRendimentoFacas").value),
+    precoFaca: toNumber($("paramPrecoFaca").value),
+    rendimentoDiscoM2: toNumber($("paramRendimentoDisco").value),
+    precoDisco: toNumber($("paramPrecoDisco").value),
+    consumoDuplaLitrosM2: toNumber($("paramConsumoMaquinaDupla").value),
+    consumoSimplesLitrosM2: toNumber($("paramConsumoMaquinaSimples").value),
+    consumoCorteLitrosM2: toNumber($("paramConsumoMaquinaCorte").value),
+    percentualDupla: toNumber($("paramPercentualMaquinaDupla").value),
+    percentualSimples: toNumber($("paramPercentualMaquinaSimples").value),
+    percentualCorte: toNumber($("paramPercentualMaquinaCorte").value)
+  };
+}
+
 function getDraftStorageKey(userId = currentUserId) {
   return `${DRAFT_STORAGE_KEY_PREFIX}${userId}`;
 }
@@ -394,9 +481,14 @@ function updateSessionInfo() {
 }
 
 function updateTabVisibility() {
+  const admin = isAdmin();
   const adminOnlyButtons = document.querySelectorAll(".tab-btn[data-admin-only='true']");
   adminOnlyButtons.forEach((button) => {
-    button.hidden = !isAdmin();
+    button.hidden = !admin;
+  });
+
+  document.querySelectorAll("[data-admin-only-block='true']").forEach((block) => {
+    block.hidden = !admin;
   });
 
   const activeButton = document.querySelector(".tab-btn.active");
@@ -514,7 +606,6 @@ function proposalFieldsSnapshot() {
     "consumo",
     "precoCombustivel",
     "pedagio",
-    "consumoMaquinas",
     "quantidadeVeiculos",
     "modoFuncionarios",
     "funcionarios",
@@ -677,6 +768,14 @@ function getUserFormData() {
   };
 }
 
+function atualizarCampoAtivoUsuarioPorTipo() {
+  const isAdminType = $("usuarioTipo").value === ROLE_ADMIN;
+  $("usuarioAtivo").disabled = isAdminType;
+  if (isAdminType) {
+    $("usuarioAtivo").checked = true;
+  }
+}
+
 function resetUserForm() {
   editingUserId = "";
   $("usuarioNome").value = "";
@@ -684,6 +783,7 @@ function resetUserForm() {
   $("usuarioTipo").value = ROLE_SELLER;
   $("usuarioSenha").value = "";
   $("usuarioAtivo").checked = true;
+  $("usuarioAtivo").disabled = false;
   $("btnSalvarUsuario").textContent = "Salvar usuário";
 }
 
@@ -722,6 +822,11 @@ function renderUsersTable() {
     btnAlternar.dataset.action = "alternar-usuario";
     btnAlternar.dataset.id = user.id;
     btnAlternar.textContent = user.active ? "Inativar" : "Ativar";
+    if (user.role === ROLE_ADMIN) {
+      btnAlternar.textContent = "Sempre ativo";
+      btnAlternar.className = "btn btn-table btn-secondary";
+      btnAlternar.disabled = true;
+    }
 
     actions.append(btnEditar, btnAlternar);
 
@@ -753,6 +858,7 @@ function carregarUsuarioPorId(id) {
   $("usuarioTipo").value = user.role || ROLE_SELLER;
   $("usuarioAtivo").checked = Boolean(user.active);
   $("usuarioSenha").value = "";
+  atualizarCampoAtivoUsuarioPorTipo();
   $("btnSalvarUsuario").textContent = "Atualizar usuário";
   activateTab("tabUsuarios");
   showToast("Usuário carregado para edição.");
@@ -789,6 +895,7 @@ async function salvarUsuario(event) {
   }
 
   const now = Date.now();
+  const activeValue = formData.role === ROLE_ADMIN ? true : formData.active;
 
   if (editingUserId) {
     const index = users.findIndex((user) => user.id === editingUserId);
@@ -802,7 +909,7 @@ async function salvarUsuario(event) {
       name: formData.name,
       email: formData.email,
       role: formData.role,
-      active: formData.active,
+      active: activeValue,
       updatedAt: now,
       profile: {
         ...buildDefaultProfile({ name: formData.name, email: formData.email }),
@@ -835,7 +942,7 @@ async function salvarUsuario(event) {
       name: formData.name,
       email: formData.email,
       role: formData.role,
-      active: formData.active,
+      active: activeValue,
       ...(await createPasswordCredentials(formData.password.trim())),
       mustChangePassword: true,
       profile: buildDefaultProfile({ name: formData.name, email: formData.email }),
@@ -860,8 +967,8 @@ function alternarStatusUsuario(id) {
   if (index < 0) return;
 
   const targetUser = users[index];
-  if (targetUser.id === currentUserId && targetUser.role === ROLE_ADMIN) {
-    showToast("O administrador logado não pode inativar a própria conta.", true);
+  if (targetUser.role === ROLE_ADMIN) {
+    showToast("Administrador deve permanecer ativo.", true);
     return;
   }
 
@@ -927,9 +1034,9 @@ function calcularOrcamento() {
   const encargos = toNumber($("encargos").value);
   const alimentacaoFuncionario = toNumber($("alimentacaoFuncionario").value);
   const hotelFuncionario = toNumber($("hotelFuncionario").value);
-  const consumoMaquinas = toNumber($("consumoMaquinas").value);
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
+  const machineDb = getMachineDatabase();
   const funcionariosAutomaticos = calcularFuncionariosPorMetragem(metragem);
   const modoFuncionarios = getModoFuncionarios();
   const funcionariosSelecionados =
@@ -951,9 +1058,26 @@ function calcularOrcamento() {
   const custoMaoDeObra = funcionariosSelecionados * valorDia * dias;
   const custoAlimentacao = funcionariosSelecionados * alimentacaoFuncionario * dias;
   const custoHotel = funcionariosSelecionados * hotelFuncionario * dias;
-  const custoCombustivelMaquinas = consumoMaquinas * precoCombustivel;
+  const facasEstimadas = metragem > 0 ? Math.ceil(metragem / machineDb.rendimentoFacasM2) : 0;
+  const discosEstimados = metragem > 0 ? Math.ceil(metragem / machineDb.rendimentoDiscoM2) : 0;
+  const custoFacas = facasEstimadas * machineDb.precoFaca;
+  const custoDiscos = discosEstimados * machineDb.precoDisco;
+  const consumoPonderadoMaquinasPorM2 =
+    (machineDb.consumoDuplaLitrosM2 * machineDb.percentualDupla
+      + machineDb.consumoSimplesLitrosM2 * machineDb.percentualSimples
+      + machineDb.consumoCorteLitrosM2 * machineDb.percentualCorte) / 100;
+  const litrosCombustivelMaquinas = metragem * consumoPonderadoMaquinasPorM2;
+  const custoCombustivelMaquinas = litrosCombustivelMaquinas * precoCombustivel;
   const subtotal =
-    custoDeslocamento + custoMaoDeObra + custoAlimentacao + custoHotel + custoCombustivelMaquinas + encargos + outrosCustos;
+    custoDeslocamento
+    + custoMaoDeObra
+    + custoAlimentacao
+    + custoHotel
+    + custoFacas
+    + custoDiscos
+    + custoCombustivelMaquinas
+    + encargos
+    + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
   const total = subtotal + valorLucro;
   const valorM2 = metragem > 0 ? total / metragem : 0;
@@ -976,6 +1100,11 @@ function calcularOrcamento() {
   $("resFuncionarios").textContent = String(funcionariosSelecionados);
   $("resAlimentacao").textContent = formatMoney(custoAlimentacao);
   $("resHotel").textContent = formatMoney(custoHotel);
+  $("resFacasQtd").textContent = String(facasEstimadas);
+  $("resFacasCusto").textContent = formatMoney(custoFacas);
+  $("resDiscosQtd").textContent = String(discosEstimados);
+  $("resDiscosCusto").textContent = formatMoney(custoDiscos);
+  $("resCombustivelMaquinasLitros").textContent = `${formatNumber(litrosCombustivelMaquinas)} L`;
   $("resCombustivelMaquinas").textContent = formatMoney(custoCombustivelMaquinas);
   $("resEncargos").textContent = formatMoney(encargos);
   $("resOutros").textContent = formatMoney(outrosCustos);
@@ -1021,7 +1150,6 @@ function limparCampos() {
     "consumo",
     "precoCombustivel",
     "pedagio",
-    "consumoMaquinas",
     "quantidadeVeiculos",
     "modoFuncionarios",
     "funcionarios",
@@ -1060,6 +1188,35 @@ function limparCampos() {
   updateDraftStatus("Rascunho limpo deste aparelho.");
   calcularOrcamento();
   showToast("Campos limpos com sucesso.");
+}
+
+function alternarBancoDadosEstimativas() {
+  const form = $("machineDbForm");
+  form.hidden = !form.hidden;
+  $("btnAbrirBancoDados").textContent = form.hidden ? "Abrir banco de dados" : "Fechar banco de dados";
+}
+
+function salvarBancoDadosEstimativas(event) {
+  event?.preventDefault();
+  if (!isAdmin()) return;
+
+  const nextDb = readMachineDatabaseFromForm();
+  if (!saveMachineDatabase(nextDb)) return;
+
+  applyMachineDatabaseToForm();
+  calcularOrcamento();
+  salvarRascunhoLocal();
+  showToast("Banco de dados local atualizado.");
+}
+
+function restaurarBancoDadosEstimativas() {
+  if (!isAdmin()) return;
+  if (!saveMachineDatabase(DEFAULT_MACHINE_DATABASE)) return;
+
+  applyMachineDatabaseToForm();
+  calcularOrcamento();
+  salvarRascunhoLocal();
+  showToast("Parâmetros restaurados para o padrão.");
 }
 
 function salvarRascunhoLocal() {
@@ -1380,6 +1537,9 @@ function atualizarInterfaceAutenticada() {
   renderizarTabelaPropostas();
   renderDashboard();
   atualizarTextoBotaoProposta();
+  applyMachineDatabaseToForm();
+  $("machineDbForm").hidden = true;
+  $("btnAbrirBancoDados").textContent = "Abrir banco de dados";
   atualizarModoFuncionarios({ preserveManualValue: false });
   carregarRascunhoLocal();
   if (!$("propostaTextoPadrao").value.trim()) {
@@ -1421,9 +1581,12 @@ function bindStaticEvents() {
   });
   $("passwordForm").addEventListener("submit", trocarMinhaSenha);
   $("userForm").addEventListener("submit", salvarUsuario);
+  $("machineDbForm").addEventListener("submit", salvarBancoDadosEstimativas);
   $("btnLogout").addEventListener("click", () => handleLogout());
   $("btnLimparPerfil").addEventListener("click", limparPerfil);
   $("btnLimparUsuario").addEventListener("click", resetUserForm);
+  $("btnAbrirBancoDados").addEventListener("click", alternarBancoDadosEstimativas);
+  $("btnRestaurarBancoDados").addEventListener("click", restaurarBancoDadosEstimativas);
   $("btnCalcular").addEventListener("click", () => {
     calcularOrcamento();
     salvarRascunhoLocal();
@@ -1489,6 +1652,8 @@ function bindStaticEvents() {
     }
   });
 
+  $("usuarioTipo").addEventListener("change", atualizarCampoAtivoUsuarioPorTipo);
+
   [
     "cliente",
     "documento",
@@ -1501,7 +1666,6 @@ function bindStaticEvents() {
     "consumo",
     "precoCombustivel",
     "pedagio",
-    "consumoMaquinas",
     "quantidadeVeiculos",
     "viagens",
     "valorDia",
@@ -1577,6 +1741,7 @@ function bindStaticEvents() {
 async function init() {
   bindStaticEvents();
   await ensureAdminExists();
+  applyMachineDatabaseToForm();
   updateAppVisibility();
   restoreSession();
   atualizarTextoBotaoProposta();
