@@ -343,6 +343,31 @@ function calcularFuncionariosPorMetragem(metragem) {
   return metragem > 0 ? Math.ceil(metragem / M2_PER_WORKER) : 0;
 }
 
+function isModoManualLogistica() {
+  const modoLogistica = $("modoLogistica");
+  return modoLogistica ? modoLogistica.value === "MANUAL" : false;
+}
+
+function atualizarModoLogistica() {
+  const manual = isModoManualLogistica();
+  $("btnRota").disabled = manual;
+
+  if (manual) {
+    ultimaChaveRotaAutomatica = "";
+    if (rotaAutomaticaTimeout) {
+      clearTimeout(rotaAutomaticaTimeout);
+      rotaAutomaticaTimeout = null;
+    }
+    $("mapaContainer").style.display = "none";
+    $("mapaInfo").textContent = "";
+    mapaOverlays.forEach((o) => o.setMap(null));
+    mapaOverlays = [];
+    return;
+  }
+
+  agendarCalculoRotaAutomatica();
+}
+
 async function preencherEnderecoPorCepInput({
   cepFieldId,
   enderecoFieldId,
@@ -406,6 +431,10 @@ async function preencherEnderecosPorCep() {
 }
 
 function agendarCalculoRotaAutomatica() {
+  if (isModoManualLogistica()) {
+    return;
+  }
+
   const cepOrigem = normalizarCep($("cepOrigem").value);
   const cepDestino = normalizarCep($("cep").value);
   if (cepOrigem.length !== 8 || cepDestino.length !== 8) {
@@ -431,6 +460,14 @@ function agendarCalculoRotaAutomatica() {
 
 async function calcularRotaAutomatica(options = {}) {
   const { silent = false } = options;
+
+  if (isModoManualLogistica()) {
+    if (!silent) {
+      alert("Modo manual ativo: informe distância e pedágio manualmente.");
+    }
+    return false;
+  }
+
   const cepOrigem = normalizarCep($("cepOrigem").value);
   const cepDestino = normalizarCep($("cep").value);
   const tipoMapa = $("tipoMapa").value;
@@ -608,6 +645,8 @@ function limparCampos() {
 
   $("viagens").value = 1;
   $("tipoMapa").value = "QUALP";
+  $("modoLogistica").value = "AUTOMATICO";
+  $("btnRota").disabled = false;
   ultimaChaveRotaAutomatica = "";
   if (rotaAutomaticaTimeout) {
     clearTimeout(rotaAutomaticaTimeout);
@@ -692,6 +731,7 @@ $("tipoMapa").addEventListener("change", () => {
   ultimaChaveRotaAutomatica = "";
   agendarCalculoRotaAutomatica();
 });
+$("modoLogistica").addEventListener("change", atualizarModoLogistica);
 
 $("btnCalcular").addEventListener("click", calcularOrcamento);
 $("btnLimpar").addEventListener("click", limparCampos);
@@ -705,3 +745,4 @@ $("btnLimparChave").addEventListener("click", limparChaveGoogleMaps);
 
 // Initialize Google Maps key status on load
 atualizarStatusChave();
+atualizarModoLogistica();
