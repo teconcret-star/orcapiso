@@ -261,13 +261,25 @@ function getDraftFirestoreDocId(userId = currentUserId) {
   return userId ? `${FIRESTORE_DRAFT_DOC_PREFIX}${userId}` : "";
 }
 
+function toTimestampMillis(value) {
+  if (typeof value?.toMillis === "function") {
+    return value.toMillis();
+  }
+  return toNumber(value);
+}
+
 function normalizeDraftPayload(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const snapshot = value.snapshot && typeof value.snapshot === "object" && !Array.isArray(value.snapshot)
     ? value.snapshot
     : value;
+  const updatedAtClient = toTimestampMillis(value.updatedAtClient) || toTimestampMillis(value.updatedAt) || Date.now();
+  const updatedAtServer = toTimestampMillis(value.updatedAtServer);
   return {
-    updatedAt: toNumber(value.updatedAt) || Date.now(),
+    updatedAt: updatedAtClient,
+    updatedAtClient,
+    updatedAtServer,
+    pendingSync: Boolean(value.pendingSync) && !updatedAtServer,
     snapshot
   };
 }
@@ -434,14 +446,42 @@ function syncFirestoreDoc(docId, value) {
 async function readFirestoreDraftPayload(userId = currentUserId) {
   const docId = getDraftFirestoreDocId(userId);
   if (!docId) return null;
-  return normalizeDraftPayload(await readFirestoreDoc(docId, null));
+  const ref = getFirestoreDoc(docId);
+  if (!ref) return null;
+  try {
+    const snap = await ref.get();
+    if (!snap.exists) return null;
+    const data = snap.data() || {};
+    return normalizeDraftPayload({
+      ...(data.data && typeof data.data === "object" ? data.data : {}),
+      updatedAtServer: data.updatedAtServer
+    });
+  } catch (error) {
+    handleFirebaseConnectionError(`Falha ao ler ${docId}:`, error);
+    return null;
+  }
 }
 
 function syncFirestoreDraftPayload(payload, userId = currentUserId) {
   const docId = getDraftFirestoreDocId(userId);
   const normalized = normalizeDraftPayload(payload);
   if (!docId || !normalized) return;
-  syncFirestoreDoc(docId, normalized);
+  const ref = getFirestoreDoc(docId);
+  if (!ref) {
+    scheduleFirebaseReconnect();
+    return;
+  }
+  ref.set({
+    data: {
+      updatedAt: normalized.updatedAtClient,
+      updatedAtClient: normalized.updatedAtClient,
+      pendingSync: false,
+      snapshot: normalized.snapshot
+    },
+    updatedAtServer: window.firebase?.firestore?.FieldValue?.serverTimestamp?.() || normalized.updatedAtClient
+  }).catch((error) => {
+    handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
+  });
 }
 
 function clearFirestoreDraft(userId = currentUserId) {
@@ -521,12 +561,17 @@ function subscribeFirestoreChanges() {
         updateDraftStatus("Rascunho limpo.");
         return;
       }
+      if (snap.metadata?.hasPendingWrites) return;
 
-      const payload = normalizeDraftPayload(snap.data()?.data);
+      const data = snap.data() || {};
+      const payload = normalizeDraftPayload({
+        ...(data.data && typeof data.data === "object" ? data.data : {}),
+        updatedAtServer: data.updatedAtServer
+      });
       if (!payload) return;
 
       const localPayload = readDraftPayloadFromStorage();
-      if (localPayload && localPayload.updatedAt >= payload.updatedAt) return;
+      if (localPayload?.pendingSync && localPayload.updatedAtClient > payload.updatedAtClient) return;
 
       writeDraftPayloadToStorage(payload);
       if (!currentUserId) return;
@@ -2337,6 +2382,7 @@ function salvarRascunhoLocal() {
 
  const payload = {
    updatedAt: Date.now(),
+   pendingSync: true,
    snapshot: proposalFieldsSnapshot()
  };
  const saved = writeDraftPayloadToStorage(payload);
@@ -2367,13 +2413,10 @@ async function carregarRascunhoLocal() {
  }
 
  const firestorePayload = await readFirestoreDraftPayload();
- const shouldSyncLocalToFirestore = Boolean(
-   localPayload && (!firestorePayload || localPayload.updatedAt > firestorePayload.updatedAt)
- );
- const payload =
-   firestorePayload && (!localPayload || firestorePayload.updatedAt >= localPayload.updatedAt)
-     ? firestorePayload
-     : localPayload;
+ const shouldSyncLocalToFirestore = Boolean(localPayload && (localPayload.pendingSync || !firestorePayload));
+ const payload = localPayload?.pendingSync
+   ? localPayload
+   : (firestorePayload || localPayload);
 
  if (!payload) {
    updateDraftStatus(firebaseSyncEnabled
@@ -2390,7 +2433,9 @@ async function carregarRascunhoLocal() {
  applyProposalSnapshot(payload.snapshot);
  updateDraftStatus(payload === firestorePayload
    ? "Rascunho restaurado do Firestore."
-   : "Rascunho local restaurado e sincronizado.");
+   : shouldSyncLocalToFirestore
+     ? "Rascunho local restaurado e enviado para sincronização."
+     : "Rascunho local restaurado.");
 }
 
 async function salvarProposta() {
