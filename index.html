@@ -476,6 +476,18 @@
                 <label for="propostaResponsavel">A/C responsável</label>
                 <input type="text" id="propostaResponsavel" placeholder="Ex.: Eng. Carlos Silva" />
               </div>
+              <div class="field">
+                <label for="propostaStatus">Status da proposta</label>
+                <select id="propostaStatus">
+                  <option value="em_andamento">Em andamento</option>
+                  <option value="fechada">Fechada</option>
+                  <option value="perdida">Perdida</option>
+                </select>
+              </div>
+              <div id="propostaStatusObservacaoField" class="field full" hidden>
+                <label for="propostaStatusObservacao">Observação da perda</label>
+                <textarea id="propostaStatusObservacao" rows="3" placeholder="Descreva o motivo da perda da proposta."></textarea>
+              </div>
               <div class="field full">
                 <label for="propostaTextoPadrao">Texto padrão da proposta</label>
                 <textarea id="propostaTextoPadrao" rows="4">Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.</textarea>
@@ -564,7 +576,9 @@
                   <p><strong>Validade:</strong> <span id="prevValidade">-</span></p>
                   <p><strong>Prazo de execução:</strong> <span id="prevPrazo">-</span></p>
                   <p><strong>Condição de pagamento:</strong> <span id="prevPagamento">-</span></p>
+                  <p><strong>Status da proposta:</strong> <span id="prevStatusProposta" class="proposal-status proposal-status-em_andamento">Em andamento</span></p>
                   <p><strong>Obs. equipamentos alugados:</strong> <span id="prevEquipamentosAlugadosObs">-</span></p>
+                  <p id="prevStatusObservacao">Obs. da perda: -</p>
                   <p id="prevObservacoes">Observações: -</p>
                 </div>
               </section>
@@ -706,6 +720,7 @@
                     <th>Título</th>
                     <th>Cliente</th>
                     <th>Data</th>
+                    <th>Status</th>
                     <th id="colunaPropostaVendedor" hidden>Vendedor</th>
                     <th>Ações</th>
                   </tr>

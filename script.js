@@ -34,6 +34,23 @@ const IFRAME_PRINT_FALLBACK_TIMEOUT_MS = 2000;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
 const DEFAULT_IMPOSTO_PERCENTUAL = "1";
+const PROPOSAL_STATUS_EM_ANDAMENTO = "em_andamento";
+const PROPOSAL_STATUS_FECHADA = "fechada";
+const PROPOSAL_STATUS_PERDIDA = "perdida";
+const PROPOSAL_STATUS_META = {
+  [PROPOSAL_STATUS_EM_ANDAMENTO]: {
+    label: "Em andamento",
+    className: "proposal-status-em_andamento"
+  },
+  [PROPOSAL_STATUS_FECHADA]: {
+    label: "Fechada",
+    className: "proposal-status-fechada"
+  },
+  [PROPOSAL_STATUS_PERDIDA]: {
+    label: "Perdida",
+    className: "proposal-status-perdida"
+  }
+};
 const EQUIPAMENTOS_TIPO_PROPRIOS = "proprios";
 const EQUIPAMENTOS_TIPO_ALUGADOS = "alugados";
 const EQUIPAMENTOS_ALUGADOS_OPCOES = [
@@ -96,6 +113,16 @@ let chartParticipacaoVendedor = null;
 function toNumber(value) {
   const number = parseFloat(value);
   return Number.isNaN(number) ? 0 : number;
+}
+
+function normalizeProposalStatus(value) {
+  if (value === PROPOSAL_STATUS_FECHADA) return PROPOSAL_STATUS_FECHADA;
+  if (value === PROPOSAL_STATUS_PERDIDA) return PROPOSAL_STATUS_PERDIDA;
+  return PROPOSAL_STATUS_EM_ANDAMENTO;
+}
+
+function getProposalStatusMeta(status) {
+  return PROPOSAL_STATUS_META[normalizeProposalStatus(status)] || PROPOSAL_STATUS_META[PROPOSAL_STATUS_EM_ANDAMENTO];
 }
 
 function onlyDigits(value) {
@@ -967,6 +994,8 @@ function proposalFieldsSnapshot() {
     "propostaPagamento",
     "propostaPrazo",
     "propostaResponsavel",
+    "propostaStatus",
+    "propostaStatusObservacao",
     "propostaTextoPadrao",
     "propostaObservacoes"
   ];
@@ -985,7 +1014,22 @@ function applyProposalSnapshot(snapshot = {}) {
   atualizarCampoPisoTela({ preserveValueWhenDisabled: true });
   atualizarCampoCuraQuimica({ preserveValueWhenDisabled: true });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
+  atualizarCampoStatusProposta({ preserveValueWhenHidden: true });
   calcularOrcamento();
+}
+
+function atualizarCampoStatusProposta({ preserveValueWhenHidden = true } = {}) {
+  const status = normalizeProposalStatus($("propostaStatus").value);
+  const observacaoField = $("propostaStatusObservacaoField");
+  const observacaoInput = $("propostaStatusObservacao");
+  const statusPerdida = status === PROPOSAL_STATUS_PERDIDA;
+
+  $("propostaStatus").value = status;
+  observacaoField.hidden = !statusPerdida;
+  observacaoInput.disabled = !statusPerdida;
+  if (!statusPerdida && !preserveValueWhenHidden) {
+    observacaoInput.value = "";
+  }
 }
 
 function renderizarTabelaPropostas() {
@@ -994,7 +1038,8 @@ function renderizarTabelaPropostas() {
   const showOwner = isAdmin();
   const query = getFilterQuery("filtroTabelaPropostas");
   const filteredList = list.filter((item) => {
-    const rowData = [item.titulo, item.cliente, item.data, item.ownerName, item.ownerEmail];
+    const statusMeta = getProposalStatusMeta(item.status || item.snapshot?.propostaStatus);
+    const rowData = [item.titulo, item.cliente, item.data, statusMeta.label, item.ownerName, item.ownerEmail];
     return matchesFilter(rowData, query);
   });
 
@@ -1005,7 +1050,7 @@ function renderizarTabelaPropostas() {
   if (!filteredList.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = showOwner ? 5 : 4;
+    cell.colSpan = showOwner ? 6 : 5;
     cell.textContent = query ? "Nenhuma proposta encontrada para o filtro informado." : "Nenhuma proposta salva.";
     row.appendChild(cell);
     tbody.appendChild(row);
@@ -1024,6 +1069,13 @@ function renderizarTabelaPropostas() {
 
     const data = document.createElement("td");
     data.textContent = item.data || "-";
+
+    const status = document.createElement("td");
+    const statusMeta = getProposalStatusMeta(item.status || item.snapshot?.propostaStatus);
+    const statusBadge = document.createElement("span");
+    statusBadge.className = `proposal-status ${statusMeta.className}`;
+    statusBadge.textContent = statusMeta.label;
+    status.appendChild(statusBadge);
 
     const vendedor = document.createElement("td");
     vendedor.textContent = item.ownerName || "Sistema";
@@ -1045,7 +1097,7 @@ function renderizarTabelaPropostas() {
     btnExcluir.textContent = "Excluir";
 
     actions.append(btnEditar, btnExcluir);
-    row.append(titulo, cliente, data);
+    row.append(titulo, cliente, data, status);
     if (showOwner) row.appendChild(vendedor);
     row.appendChild(actions);
     fragment.appendChild(row);
@@ -1551,6 +1603,8 @@ function calcularOrcamento() {
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
   const impostoPercentual = toNumber($("impostoPercentual").value);
+  const propostaStatus = normalizeProposalStatus($("propostaStatus").value);
+  const propostaStatusObservacao = $("propostaStatusObservacao").value.trim();
   const machineDb = getMachineDatabase();
   const funcionariosAutomaticos = calcularFuncionariosPorMetragem(metragem);
   const modoFuncionarios = getModoFuncionarios();
@@ -1598,9 +1652,9 @@ function calcularOrcamento() {
     + custoCuraQuimica
     + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
-  const totalSemImposto = subtotal + valorLucro;
-  const valorImposto = totalSemImposto * (impostoPercentual / 100);
-  const total = totalSemImposto + valorImposto;
+  const totalComLucro = subtotal + valorLucro;
+  const valorImposto = totalComLucro * (impostoPercentual / 100);
+  const total = totalComLucro;
   const valorM2 = metragem > 0 ? total / metragem : 0;
   const profile = getProfileFromForm();
 
@@ -1641,6 +1695,11 @@ function calcularOrcamento() {
   $("prevValidade").textContent = $("propostaValidade").value.trim() || "-";
   $("prevPrazo").textContent = $("propostaPrazo").value.trim() || "-";
   $("prevPagamento").textContent = $("propostaPagamento").value.trim() || "-";
+  const statusMeta = getProposalStatusMeta(propostaStatus);
+  $("prevStatusProposta").className = `proposal-status ${statusMeta.className}`;
+  $("prevStatusProposta").textContent = statusMeta.label;
+  $("prevStatusObservacao").hidden = propostaStatus !== PROPOSAL_STATUS_PERDIDA;
+  $("prevStatusObservacao").textContent = `Obs. da perda: ${propostaStatusObservacao || "-"}`;
   $("prevEquipamentosAlugadosObs").textContent = equipamentosTipo === EQUIPAMENTOS_TIPO_ALUGADOS
     ? (observacaoEquipamentosAlugados || "-")
     : "-";
@@ -1703,6 +1762,8 @@ function limparCampos() {
     "propostaPagamento",
     "propostaPrazo",
     "propostaResponsavel",
+    "propostaStatus",
+    "propostaStatusObservacao",
     "propostaTextoPadrao",
     "propostaObservacoes"
   ];
@@ -1718,12 +1779,14 @@ function limparCampos() {
   $("curaQuimica").value = "sem_cura";
   $("equipamentosTipo").value = EQUIPAMENTOS_TIPO_PROPRIOS;
   $("impostoPercentual").value = DEFAULT_IMPOSTO_PERCENTUAL;
+  $("propostaStatus").value = PROPOSAL_STATUS_EM_ANDAMENTO;
   $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   editingProposalId = "";
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
   atualizarCampoCuraQuimica({ preserveValueWhenDisabled: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: false, syncFromSnapshot: true });
+  atualizarCampoStatusProposta({ preserveValueWhenHidden: false });
   atualizarTextoBotaoProposta();
   if (currentUserId) {
     localStorage.removeItem(getDraftStorageKey());
@@ -1813,6 +1876,12 @@ async function salvarProposta() {
   const list = getSavedProposals();
   const now = Date.now();
   const existingProposal = editingProposalId ? list.find((item) => item.id === editingProposalId) : null;
+  const propostaStatus = normalizeProposalStatus($("propostaStatus").value);
+  const propostaStatusObservacao = $("propostaStatusObservacao").value.trim();
+  if (propostaStatus === PROPOSAL_STATUS_PERDIDA && !propostaStatusObservacao) {
+    showToast("Informe a observação da perda quando o status for Perdida.", true);
+    return;
+  }
   const propostaAtualizada = {
     titulo: $("propostaTitulo").value.trim() || "Proposta sem título",
     cliente: $("cliente").value.trim() || "Cliente não informado",
@@ -1820,6 +1889,8 @@ async function salvarProposta() {
     timestamp: now,
     total: resumo.total,
     valorM2: resumo.valorM2,
+    status: propostaStatus,
+    statusObservacao: propostaStatusObservacao,
     ownerId: existingProposal?.ownerId || currentUserId,
     ownerName: existingProposal?.ownerName || currentUser.name,
     ownerEmail: existingProposal?.ownerEmail || currentUser.email,
@@ -1914,6 +1985,8 @@ function gerarMensagemWhatsApp() {
     `Endereço da obra: ${$("endereco").value.trim() || "-"}`,
     `Área: ${$("resArea").textContent}`,
     `Valor total: ${$("resTotal").textContent}`,
+    `Status da proposta: ${getProposalStatusMeta($("propostaStatus").value).label}`,
+    `Obs. da perda: ${$("propostaStatus").value === PROPOSAL_STATUS_PERDIDA ? ($("propostaStatusObservacao").value.trim() || "-") : "-"}`,
     `Preço por m²: ${$("resValorM2").textContent}`,
     `Número da proposta: ${$("propostaNumero").value.trim() || "-"}`,
     `Validade: ${$("propostaValidade").value.trim() || "-"}`,
@@ -2200,6 +2273,7 @@ function atualizarInterfaceAutenticada() {
   carregarRascunhoLocal();
   atualizarCampoPisoTela({ preserveValueWhenDisabled: true });
   atualizarCampoCuraQuimica({ preserveValueWhenDisabled: true });
+  atualizarCampoStatusProposta({ preserveValueWhenHidden: true });
   if (!$("propostaTextoPadrao").value.trim()) {
     $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   }
@@ -2325,6 +2399,12 @@ function bindStaticEvents() {
     salvarRascunhoLocal();
   });
 
+  $("propostaStatus").addEventListener("change", () => {
+    atualizarCampoStatusProposta({ preserveValueWhenHidden: false });
+    calcularOrcamento();
+    salvarRascunhoLocal();
+  });
+
   $("impostoPercentual").addEventListener("change", () => {
     calcularOrcamento();
     salvarRascunhoLocal();
@@ -2401,6 +2481,7 @@ function bindStaticEvents() {
     "propostaPagamento",
     "propostaPrazo",
     "propostaResponsavel",
+    "propostaStatusObservacao",
     "propostaTextoPadrao",
     "propostaObservacoes"
   ].forEach((id) => {
@@ -2476,6 +2557,7 @@ async function init() {
   atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
   atualizarCampoCuraQuimica({ preserveValueWhenDisabled: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
+  atualizarCampoStatusProposta({ preserveValueWhenHidden: false });
   if (!$("propostaTextoPadrao").value.trim()) {
     $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   }
