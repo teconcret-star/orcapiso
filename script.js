@@ -89,6 +89,9 @@ let printProposalPendingCleanup = false;
 let printCleanupRetryTimeoutId = null;
 let firestoreDb = null;
 let firebaseSyncEnabled = false;
+let chartPropostasPorVendedor = null;
+let chartValorPorVendedor = null;
+let chartParticipacaoVendedor = null;
 
 function toNumber(value) {
   const number = parseFloat(value);
@@ -400,6 +403,21 @@ function atualizarCampoPisoTela({ preserveValueWhenDisabled = false } = {}) {
   infoPisoTelaEl.textContent = comTela
     ? "Informe o valor por m² da tela para somar ao custo final do piso."
     : "Disponível apenas quando o piso for com tela.";
+}
+
+function atualizarCampoCuraQuimica({ preserveValueWhenDisabled = false } = {}) {
+  const curaQuimicaEl = $("curaQuimica");
+  const valorCuraM2El = $("valorCuraM2");
+  const infoCuraQuimicaEl = $("infoCuraQuimica");
+  if (!curaQuimicaEl || !valorCuraM2El || !infoCuraQuimicaEl) return;
+  const comCura = curaQuimicaEl.value !== "sem_cura";
+  valorCuraM2El.disabled = !comCura;
+  if (!comCura && !preserveValueWhenDisabled) {
+    valorCuraM2El.value = "";
+  }
+  infoCuraQuimicaEl.textContent = comCura
+    ? "Informe o valor por m² da cura química para somar ao custo final do piso."
+    : "Disponível apenas quando a cura química for selecionada.";
 }
 
 function getEquipamentosTipo() {
@@ -933,6 +951,8 @@ function proposalFieldsSnapshot() {
     "terraplanagemTotal",
     "pisoTela",
     "valorTelaM2",
+    "curaQuimica",
+    "valorCuraM2",
     "equipamentosTipo",
     "equipamentosAlugadosItems",
     "equipamentosAlugadosObservacao",
@@ -963,6 +983,7 @@ function applyProposalSnapshot(snapshot = {}) {
   });
   atualizarModoFuncionarios();
   atualizarCampoPisoTela({ preserveValueWhenDisabled: true });
+  atualizarCampoCuraQuimica({ preserveValueWhenDisabled: true });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
   calcularOrcamento();
 }
@@ -1058,16 +1079,23 @@ function renderDashboard() {
     cell.textContent = "Nenhum vendedor cadastrado.";
     row.appendChild(cell);
     tbody.appendChild(row);
+    renderDashboardCharts([], [], []);
     return;
   }
 
   const fragment = document.createDocumentFragment();
+  const chartLabels = [];
+  const chartPropostas = [];
+  const chartValores = [];
 
   sellers.forEach((seller) => {
     const sellerProposals = proposals.filter((item) => item.ownerId === seller.id);
     const totalValue = sellerProposals.reduce((acc, item) => acc + toNumber(item.total), 0);
     const averageTicket = sellerProposals.length ? totalValue / sellerProposals.length : 0;
     const latestTimestamp = sellerProposals.reduce((latest, item) => Math.max(latest, toNumber(item.timestamp)), 0);
+    chartLabels.push(seller.name);
+    chartPropostas.push(sellerProposals.length);
+    chartValores.push(totalValue);
     const rowData = [
       seller.name,
       seller.active ? "Ativo" : "Inativo",
@@ -1095,10 +1123,107 @@ function renderDashboard() {
     cell.textContent = "Nenhum resultado encontrado para o filtro informado.";
     row.appendChild(cell);
     tbody.appendChild(row);
-    return;
+  } else {
+    tbody.appendChild(fragment);
   }
 
-  tbody.appendChild(fragment);
+  renderDashboardCharts(chartLabels, chartPropostas, chartValores);
+}
+
+function renderDashboardCharts(labels, propostas, valores) {
+  if (typeof Chart === "undefined") return;
+
+  const CHART_COLORS = [
+    "#16a34a", "#2563eb", "#d97706", "#dc2626", "#7c3aed",
+    "#0891b2", "#be185d", "#059669", "#1d4ed8", "#b45309"
+  ];
+
+  const canvasPropostas = $("chartPropostasPorVendedor");
+  const canvasValor = $("chartValorPorVendedor");
+  const canvasParticipacao = $("chartParticipacaoVendedor");
+
+  if (!canvasPropostas || !canvasValor || !canvasParticipacao) return;
+
+  const bgColors = labels.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
+
+  if (chartPropostasPorVendedor) {
+    chartPropostasPorVendedor.destroy();
+  }
+  chartPropostasPorVendedor = new Chart(canvasPropostas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Propostas",
+        data: propostas,
+        backgroundColor: bgColors,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+
+  if (chartValorPorVendedor) {
+    chartValorPorVendedor.destroy();
+  }
+  chartValorPorVendedor = new Chart(canvasValor, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Valor total (R$)",
+        data: valores,
+        backgroundColor: bgColors,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: (v) => `R$ ${formatNumber(v)}`
+          }
+        }
+      }
+    }
+  });
+
+  if (chartParticipacaoVendedor) {
+    chartParticipacaoVendedor.destroy();
+  }
+  const totalGlobal = valores.reduce((a, b) => a + b, 0);
+  chartParticipacaoVendedor = new Chart(canvasParticipacao, {
+    type: "doughnut",
+    data: {
+      labels,
+      datasets: [{
+        data: totalGlobal > 0 ? valores : labels.map(() => 1),
+        backgroundColor: bgColors
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              if (totalGlobal <= 0) return ctx.label;
+              const pct = ((ctx.parsed / totalGlobal) * 100).toFixed(1);
+              return `${ctx.label}: ${pct}%`;
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 function getUserFormData() {
@@ -1395,6 +1520,10 @@ function calcularOrcamento() {
   const pisoComTela = $("pisoTela").value === "com_tela";
   const valorTelaM2 = pisoComTela ? toNumber($("valorTelaM2").value) : 0;
   const custoTelaTotal = metragem > 0 ? valorTelaM2 * metragem : 0;
+  const curaQuimicaTipo = $("curaQuimica").value;
+  const comCuraQuimica = curaQuimicaTipo !== "sem_cura";
+  const valorCuraM2 = comCuraQuimica ? toNumber($("valorCuraM2").value) : 0;
+  const custoCuraQuimica = metragem > 0 ? valorCuraM2 * metragem : 0;
   const equipamentosTipo = getEquipamentosTipo();
   const equipamentosAlugados = equipamentosTipo === EQUIPAMENTOS_TIPO_ALUGADOS
     ? readEquipamentosAlugadosFromUI({ dias, updateTotals: true })
@@ -1450,6 +1579,7 @@ function calcularOrcamento() {
     + terraplanagemTotal
     + custoTelaTotal
     + custoEquipamentosAlugados
+    + custoCuraQuimica
     + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
   const totalSemImposto = subtotal + valorLucro;
@@ -1484,6 +1614,7 @@ function calcularOrcamento() {
   $("resEncargos").textContent = formatMoney(encargos);
   $("resOutros").textContent = formatMoney(outrosCustos);
   $("resEquipamentosAlugados").textContent = formatMoney(custoEquipamentosAlugados);
+  $("resCuraQuimica").textContent = formatMoney(custoCuraQuimica);
   $("resSubtotal").textContent = formatMoney(subtotal);
   $("resLucro").textContent = formatMoney(valorLucro);
   $("resImposto").textContent = formatMoney(valorImposto);
@@ -1541,6 +1672,8 @@ function limparCampos() {
     "terraplanagemTotal",
     "pisoTela",
     "valorTelaM2",
+    "curaQuimica",
+    "valorCuraM2",
     "equipamentosTipo",
     "equipamentosAlugadosItems",
     "equipamentosAlugadosObservacao",
@@ -1566,12 +1699,14 @@ function limparCampos() {
   $("quantidadeVeiculos").value = 1;
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
   $("pisoTela").value = "sem_tela";
+  $("curaQuimica").value = "sem_cura";
   $("equipamentosTipo").value = EQUIPAMENTOS_TIPO_PROPRIOS;
   $("impostoPercentual").value = DEFAULT_IMPOSTO_PERCENTUAL;
   $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   editingProposalId = "";
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
+  atualizarCampoCuraQuimica({ preserveValueWhenDisabled: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: false, syncFromSnapshot: true });
   atualizarTextoBotaoProposta();
   if (currentUserId) {
@@ -2160,6 +2295,12 @@ function bindStaticEvents() {
     salvarRascunhoLocal();
   });
 
+  $("curaQuimica").addEventListener("change", () => {
+    atualizarCampoCuraQuimica({ preserveValueWhenDisabled: false });
+    calcularOrcamento();
+    salvarRascunhoLocal();
+  });
+
   $("equipamentosTipo").addEventListener("change", () => {
     atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
     calcularOrcamento();
@@ -2230,6 +2371,7 @@ function bindStaticEvents() {
     "hotelFuncionario",
     "terraplanagemTotal",
     "valorTelaM2",
+    "valorCuraM2",
     "equipamentosAlugadosObservacao",
     "outrosCustos",
     "lucro",
@@ -2314,6 +2456,7 @@ async function init() {
   atualizarTextoBotaoProposta();
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
+  atualizarCampoCuraQuimica({ preserveValueWhenDisabled: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
   if (!$("propostaTextoPadrao").value.trim()) {
     $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
