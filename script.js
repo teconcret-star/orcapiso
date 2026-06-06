@@ -447,6 +447,7 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
 function clearFirestoreDraft(userId = currentUserId) {
   const docId = getDraftFirestoreDocId(userId);
   if (!docId) return;
+  removeStorageItem(getDraftStorageKey(userId));
   const ref = getFirestoreDoc(docId);
   if (!ref) {
     scheduleFirebaseReconnect();
@@ -525,7 +526,7 @@ function subscribeFirestoreChanges() {
       if (!payload) return;
 
       const localPayload = readDraftPayloadFromStorage();
-      if (localPayload && localPayload.updatedAt > payload.updatedAt) return;
+      if (localPayload && localPayload.updatedAt >= payload.updatedAt) return;
 
       writeDraftPayloadToStorage(payload);
       if (!currentUserId) return;
@@ -2366,6 +2367,9 @@ async function carregarRascunhoLocal() {
  }
 
  const firestorePayload = await readFirestoreDraftPayload();
+ const shouldSyncLocalToFirestore = Boolean(
+   localPayload && (!firestorePayload || localPayload.updatedAt > firestorePayload.updatedAt)
+ );
  const payload =
    firestorePayload && (!localPayload || firestorePayload.updatedAt >= localPayload.updatedAt)
      ? firestorePayload
@@ -2379,7 +2383,7 @@ async function carregarRascunhoLocal() {
  }
 
  writeDraftPayloadToStorage(payload);
- if (payload === localPayload && (!firestorePayload || localPayload.updatedAt > firestorePayload.updatedAt)) {
+ if (shouldSyncLocalToFirestore) {
    syncFirestoreDraftPayload(localPayload);
  }
 
