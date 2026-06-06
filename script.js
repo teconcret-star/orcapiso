@@ -328,11 +328,13 @@ function updateSessionInfo() {
   if (!currentUser) {
     $("sessionUserName").textContent = "-";
     $("sessionUserMeta").textContent = "-";
+    $("senhaUsuarioEmail").value = "";
     return;
   }
 
   $("sessionUserName").textContent = currentUser.name;
   $("sessionUserMeta").textContent = `${formatRole(currentUser.role)} • ${currentUser.email} • ${currentUser.active ? "Ativo" : "Inativo"}`;
+  $("senhaUsuarioEmail").value = currentUser.email || "";
 }
 
 function updateTabVisibility() {
@@ -704,7 +706,8 @@ function countActiveAdmins(users) {
   return users.filter((user) => user.role === ROLE_ADMIN && user.active).length;
 }
 
-async function salvarUsuario() {
+async function salvarUsuario(event) {
+  event?.preventDefault();
   const formData = getUserFormData();
   const users = getUsers();
 
@@ -1189,7 +1192,8 @@ function limparEstadoImpressao() {
   document.body.classList.remove("print-proposal");
 }
 
-async function trocarMinhaSenha() {
+async function trocarMinhaSenha(event) {
+  event?.preventDefault();
   if (!refreshCurrentUser()) return;
 
   const senhaAtual = $("senhaAtual").value;
@@ -1330,11 +1334,14 @@ function bindStaticEvents() {
   });
 
   $("loginForm").addEventListener("submit", handleLogin);
+  $("profileForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    salvarPerfil();
+  });
+  $("passwordForm").addEventListener("submit", trocarMinhaSenha);
+  $("userForm").addEventListener("submit", salvarUsuario);
   $("btnLogout").addEventListener("click", () => handleLogout());
-  $("btnSalvarPerfil").addEventListener("click", salvarPerfil);
   $("btnLimparPerfil").addEventListener("click", limparPerfil);
-  $("btnTrocarSenha").addEventListener("click", trocarMinhaSenha);
-  $("btnSalvarUsuario").addEventListener("click", salvarUsuario);
   $("btnLimparUsuario").addEventListener("click", resetUserForm);
   $("btnCalcular").addEventListener("click", () => {
     calcularOrcamento();

@@ -70,69 +70,74 @@
         <section id="tabPerfil" class="tab-panel active">
           <section class="card">
             <h2>Dados do vendedor e da empresa</h2>
-            <div class="grid">
-              <div class="field">
-                <label for="perfilNomeVendedor">Nome do vendedor</label>
-                <input type="text" id="perfilNomeVendedor" placeholder="Ex.: João Silva" />
+            <form id="profileForm">
+              <div class="grid">
+                <div class="field">
+                  <label for="perfilNomeVendedor">Nome do vendedor</label>
+                  <input type="text" id="perfilNomeVendedor" placeholder="Ex.: João Silva" />
+                </div>
+
+                <div class="field">
+                  <label for="perfilTelefoneVendedor">Telefone do vendedor</label>
+                  <input type="text" id="perfilTelefoneVendedor" placeholder="Ex.: (11) 99999-9999" />
+                </div>
+
+                <div class="field">
+                  <label for="perfilEmailVendedor">E-mail do vendedor</label>
+                  <input type="email" id="perfilEmailVendedor" placeholder="Ex.: vendedor@empresa.com" autocomplete="email" />
+                </div>
+
+                <div class="field">
+                  <label for="perfilEmpresa">Nome da empresa</label>
+                  <input type="text" id="perfilEmpresa" placeholder="Ex.: TecConcret" />
+                </div>
+
+                <div class="field">
+                  <label for="perfilCnpj">CNPJ da empresa</label>
+                  <input type="text" id="perfilCnpj" placeholder="Ex.: 00.000.000/0001-00" />
+                </div>
+
+                <div class="field full">
+                  <label for="perfilEndereco">Endereço da empresa</label>
+                  <input type="text" id="perfilEndereco" placeholder="Ex.: Rua Exemplo, 100 - Centro - Cidade/UF" />
+                </div>
+
+                <div class="field full">
+                  <label for="perfilLogo">Logo da empresa</label>
+                  <input type="file" id="perfilLogo" accept="image/*" />
+                  <small class="help-text">A logo será exibida no cabeçalho da proposta.</small>
+                </div>
               </div>
 
-              <div class="field">
-                <label for="perfilTelefoneVendedor">Telefone do vendedor</label>
-                <input type="text" id="perfilTelefoneVendedor" placeholder="Ex.: (11) 99999-9999" />
+              <div class="acoes">
+                <button id="btnSalvarPerfil" type="submit" class="btn btn-primary">Salvar perfil</button>
+                <button id="btnLimparPerfil" type="button" class="btn btn-secondary">Limpar perfil</button>
               </div>
-
-              <div class="field">
-                <label for="perfilEmailVendedor">E-mail do vendedor</label>
-                <input type="email" id="perfilEmailVendedor" placeholder="Ex.: vendedor@empresa.com" />
-              </div>
-
-              <div class="field">
-                <label for="perfilEmpresa">Nome da empresa</label>
-                <input type="text" id="perfilEmpresa" placeholder="Ex.: TecConcret" />
-              </div>
-
-              <div class="field">
-                <label for="perfilCnpj">CNPJ da empresa</label>
-                <input type="text" id="perfilCnpj" placeholder="Ex.: 00.000.000/0001-00" />
-              </div>
-
-              <div class="field full">
-                <label for="perfilEndereco">Endereço da empresa</label>
-                <input type="text" id="perfilEndereco" placeholder="Ex.: Rua Exemplo, 100 - Centro - Cidade/UF" />
-              </div>
-
-              <div class="field full">
-                <label for="perfilLogo">Logo da empresa</label>
-                <input type="file" id="perfilLogo" accept="image/*" />
-                <small class="help-text">A logo será exibida no cabeçalho da proposta.</small>
-              </div>
-            </div>
-
-            <div class="acoes">
-              <button id="btnSalvarPerfil" class="btn btn-primary">Salvar perfil</button>
-              <button id="btnLimparPerfil" class="btn btn-secondary">Limpar perfil</button>
-            </div>
+            </form>
           </section>
 
           <section class="card">
             <h2>Trocar minha senha</h2>
-            <div class="grid">
-              <div class="field">
-                <label for="senhaAtual">Senha atual</label>
-                <input type="password" id="senhaAtual" autocomplete="current-password" />
+            <form id="passwordForm">
+              <input type="text" id="senhaUsuarioEmail" class="sr-only" autocomplete="username" tabindex="-1" />
+              <div class="grid">
+                <div class="field">
+                  <label for="senhaAtual">Senha atual</label>
+                  <input type="password" id="senhaAtual" autocomplete="current-password" />
+                </div>
+                <div class="field">
+                  <label for="novaSenha">Nova senha</label>
+                  <input type="password" id="novaSenha" autocomplete="new-password" />
+                </div>
+                <div class="field">
+                  <label for="confirmarNovaSenha">Confirmar nova senha</label>
+                  <input type="password" id="confirmarNovaSenha" autocomplete="new-password" />
+                </div>
               </div>
-              <div class="field">
-                <label for="novaSenha">Nova senha</label>
-                <input type="password" id="novaSenha" autocomplete="new-password" />
+              <div class="acoes">
+                <button id="btnTrocarSenha" type="submit" class="btn btn-primary">Atualizar senha</button>
               </div>
-              <div class="field">
-                <label for="confirmarNovaSenha">Confirmar nova senha</label>
-                <input type="password" id="confirmarNovaSenha" autocomplete="new-password" />
-              </div>
-            </div>
-            <div class="acoes">
-              <button id="btnTrocarSenha" class="btn btn-primary">Atualizar senha</button>
-            </div>
+            </form>
           </section>
         </section>
 
@@ -522,39 +527,41 @@
         <section id="tabUsuarios" class="tab-panel">
           <section class="card">
             <h2>Cadastro de usuários</h2>
-            <div class="grid">
-              <div class="field">
-                <label for="usuarioNome">Nome</label>
-                <input type="text" id="usuarioNome" placeholder="Ex.: Maria Santos" />
+            <form id="userForm">
+              <div class="grid">
+                <div class="field">
+                  <label for="usuarioNome">Nome</label>
+                  <input type="text" id="usuarioNome" placeholder="Ex.: Maria Santos" />
+                </div>
+                <div class="field">
+                  <label for="usuarioEmail">E-mail</label>
+                  <input type="email" id="usuarioEmail" placeholder="Ex.: maria@empresa.com" autocomplete="username" />
+                </div>
+                <div class="field">
+                  <label for="usuarioTipo">Tipo de usuário</label>
+                  <select id="usuarioTipo">
+                    <option value="seller">Vendedor</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="usuarioSenha">Senha</label>
+                  <input type="password" id="usuarioSenha" placeholder="Defina uma senha" autocomplete="new-password" />
+                  <small class="help-text">Ao editar, preencha apenas se quiser redefinir a senha.</small>
+                </div>
+                <div class="field full field-checkbox">
+                  <label class="checkbox-label" for="usuarioAtivo">
+                    <input type="checkbox" id="usuarioAtivo" checked />
+                    Usuário ativo
+                  </label>
+                </div>
               </div>
-              <div class="field">
-                <label for="usuarioEmail">E-mail</label>
-                <input type="email" id="usuarioEmail" placeholder="Ex.: maria@empresa.com" />
-              </div>
-              <div class="field">
-                <label for="usuarioTipo">Tipo de usuário</label>
-                <select id="usuarioTipo">
-                  <option value="seller">Vendedor</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="usuarioSenha">Senha</label>
-                <input type="password" id="usuarioSenha" placeholder="Defina uma senha" autocomplete="new-password" />
-                <small class="help-text">Ao editar, preencha apenas se quiser redefinir a senha.</small>
-              </div>
-              <div class="field full field-checkbox">
-                <label class="checkbox-label" for="usuarioAtivo">
-                  <input type="checkbox" id="usuarioAtivo" checked />
-                  Usuário ativo
-                </label>
-              </div>
-            </div>
 
-            <div class="acoes">
-              <button id="btnSalvarUsuario" class="btn btn-primary">Salvar usuário</button>
-              <button id="btnLimparUsuario" class="btn btn-secondary">Limpar formulário</button>
-            </div>
+              <div class="acoes">
+                <button id="btnSalvarUsuario" type="submit" class="btn btn-primary">Salvar usuário</button>
+                <button id="btnLimparUsuario" type="button" class="btn btn-secondary">Limpar formulário</button>
+              </div>
+            </form>
           </section>
 
           <section class="card">
