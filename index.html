@@ -236,6 +236,18 @@
               <button id="btnAbrirBancoDados" type="button" class="btn btn-secondary">Abrir banco de dados</button>
             </div>
             <form id="machineDbForm" class="grid" hidden>
+              <div class="field full">
+                <label for="presetEstimativaMercado">Estimativa pré-cadastrada</label>
+                <select id="presetEstimativaMercado">
+                  <option value="marketBestPractices">Boas práticas de mercado (editável)</option>
+                </select>
+                <small class="help-text">Aplique uma base de mercado e ajuste os parâmetros conforme sua realidade.</small>
+              </div>
+              <div class="field full">
+                <div class="acoes">
+                  <button id="btnAplicarEstimativaMercado" type="button" class="btn btn-secondary">Aplicar estimativa pré-cadastrada</button>
+                </div>
+              </div>
               <div class="field">
                 <label for="paramRendimentoFacas">Rendimento por faca (m²/unidade)</label>
                 <input type="number" id="paramRendimentoFacas" min="0.01" step="0.01" />
