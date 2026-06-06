@@ -15,8 +15,6 @@ const QUALP_ROTAS_DB = {
 };
 
 const cacheCoordenadas = new Map();
-let rotaAutomaticaTimeout = null;
-let ultimaChaveRotaAutomatica = "";
 
 // ── Google Maps ─────────────────────────────────────────────────────────────
 
@@ -343,31 +341,6 @@ function calcularFuncionariosPorMetragem(metragem) {
   return metragem > 0 ? Math.ceil(metragem / M2_PER_WORKER) : 0;
 }
 
-function isModoManualLogistica() {
-  const modoLogistica = $("modoLogistica");
-  return modoLogistica ? modoLogistica.value === "MANUAL" : false;
-}
-
-function atualizarModoLogistica() {
-  const manual = isModoManualLogistica();
-  $("btnRota").disabled = manual;
-
-  if (manual) {
-    ultimaChaveRotaAutomatica = "";
-    if (rotaAutomaticaTimeout) {
-      clearTimeout(rotaAutomaticaTimeout);
-      rotaAutomaticaTimeout = null;
-    }
-    $("mapaContainer").style.display = "none";
-    $("mapaInfo").textContent = "";
-    mapaOverlays.forEach((o) => o.setMap(null));
-    mapaOverlays = [];
-    return;
-  }
-
-  agendarCalculoRotaAutomatica();
-}
-
 async function preencherEnderecoPorCepInput({
   cepFieldId,
   enderecoFieldId,
@@ -428,131 +401,6 @@ async function preencherEnderecosPorCep() {
     preencherEnderecoOrigemPorCep(false),
     preencherEnderecoPorCep(false)
   ]);
-}
-
-function agendarCalculoRotaAutomatica() {
-  if (isModoManualLogistica()) {
-    return;
-  }
-
-  const cepOrigem = normalizarCep($("cepOrigem").value);
-  const cepDestino = normalizarCep($("cep").value);
-  if (cepOrigem.length !== 8 || cepDestino.length !== 8) {
-    return;
-  }
-
-  const chave = `${cepOrigem}-${cepDestino}-${$("tipoMapa").value}`;
-  if (chave === ultimaChaveRotaAutomatica) {
-    return;
-  }
-
-  if (rotaAutomaticaTimeout) {
-    clearTimeout(rotaAutomaticaTimeout);
-  }
-
-  rotaAutomaticaTimeout = setTimeout(async () => {
-    const sucesso = await calcularRotaAutomatica({ silent: true });
-    if (sucesso) {
-      ultimaChaveRotaAutomatica = chave;
-    }
-  }, AUTO_ROUTE_DEBOUNCE_MS);
-}
-
-async function calcularRotaAutomatica(options = {}) {
-  const { silent = false } = options;
-
-  if (isModoManualLogistica()) {
-    if (!silent) {
-      alert("Modo manual ativo: informe distância e pedágio manualmente.");
-    }
-    return false;
-  }
-
-  const cepOrigem = normalizarCep($("cepOrigem").value);
-  const cepDestino = normalizarCep($("cep").value);
-  const tipoMapa = $("tipoMapa").value;
-
-  if (cepOrigem.length !== 8 || cepDestino.length !== 8) {
-    if (!silent) {
-      alert("Informe o CEP de origem e o CEP da obra (ambos com 8 dígitos) para calcular a rota.");
-    }
-    return false;
-  }
-
-  $("cepOrigem").value = formatarCep(cepOrigem);
-  $("cep").value = formatarCep(cepDestino);
-
-  const btn = $("btnRota");
-  const textoOriginal = btn.textContent;
-  btn.textContent = "Calculando…";
-  btn.disabled = true;
-
-  try {
-    if (tipoMapa === "GOOGLEMAPS") {
-      await carregarScriptGoogleMaps();
-      const resultado = await calcularRotaGoogleMaps(cepOrigem, cepDestino);
-
-      $("distancia").value = resultado.distanciaKm.toFixed(2);
-      $("pedagio").value = resultado.pedagio.toFixed(2);
-
-      const infoMapa = resultado.semPedagio
-        ? `Distância: ${formatNumber(resultado.distanciaKm)} km — Pedágio: R$ 0,00 (nenhum pedágio identificado nesta rota pelo Google Maps)`
-        : `Distância: ${formatNumber(resultado.distanciaKm)} km — Pedágio estimado: ${formatMoney(resultado.pedagio)}`;
-
-      if (resultado.polyline) {
-        exibirRotaNoMapa(resultado.polyline, infoMapa);
-      }
-
-      calcularOrcamento();
-      return true;
-    }
-
-    const chaveRota = `${cepOrigem}-${cepDestino}`;
-    const rotaQualp = QUALP_ROTAS_DB[chaveRota];
-    let distanciaKm = rotaQualp?.distanciaKm || 0;
-    let pedagio = rotaQualp?.pedagio || 0;
-
-    if (!distanciaKm) {
-      const [coordsOrigem, coordsDestino] = await Promise.all([
-        buscarCoordenadasCep(cepOrigem),
-        buscarCoordenadasCep(cepDestino)
-      ]);
-
-      if (!coordsOrigem || !coordsDestino) {
-        if (!silent) {
-          alert("Não foi possível localizar coordenadas para um ou ambos os CEPs. Verifique os CEPs ou preencha distância e pedágio manualmente.");
-        }
-        return false;
-      }
-
-      const distanciaMaps = await buscarDistanciaMaps(coordsOrigem, coordsDestino);
-      if (distanciaMaps > 0) {
-        distanciaKm = distanciaMaps;
-      } else {
-        distanciaKm = haversineKm(
-          coordsOrigem.lat,
-          coordsOrigem.lon,
-          coordsDestino.lat,
-          coordsDestino.lon
-        ) * ROAD_DISTANCE_FACTOR;
-      }
-
-      pedagio = estimarPedagio(distanciaKm, tipoMapa);
-    }
-
-    $("distancia").value = distanciaKm.toFixed(2);
-    $("pedagio").value = pedagio.toFixed(2);
-    calcularOrcamento();
-    return true;
-  } catch (error) {
-    if (!silent) {
-      alert(error.message || "Erro ao calcular rota.");
-    }
-    return false;
-  } finally {
-    btn.textContent = textoOriginal;
-    btn.disabled = false;
-  }
 }
 
 function calcularOrcamento() {
@@ -644,19 +492,6 @@ function limparCampos() {
   });
 
   $("viagens").value = 1;
-  $("tipoMapa").value = "QUALP";
-  $("modoLogistica").value = "AUTOMATICO";
-  $("btnRota").disabled = false;
-  ultimaChaveRotaAutomatica = "";
-  if (rotaAutomaticaTimeout) {
-    clearTimeout(rotaAutomaticaTimeout);
-    rotaAutomaticaTimeout = null;
-  }
-
-  $("mapaContainer").style.display = "none";
-  mapaOverlays.forEach((o) => o.setMap(null));
-  mapaOverlays = [];
-
   $("resCliente").textContent = "-";
   $("resObra").textContent = "-";
   $("resArea").textContent = "0,00 m²";
@@ -693,11 +528,9 @@ $("cepOrigem").addEventListener("input", (event) => {
 
 $("cepOrigem").addEventListener("blur", async () => {
   await preencherEnderecoOrigemPorCep();
-  agendarCalculoRotaAutomatica();
 });
 $("cep").addEventListener("blur", async () => {
   await preencherEnderecoPorCep();
-  agendarCalculoRotaAutomatica();
 });
 
 $("metragem").addEventListener("input", () => {
@@ -725,24 +558,8 @@ $("metragem").addEventListener("input", () => {
   $(id).addEventListener("input", calcularOrcamento);
 });
 
-$("cep").addEventListener("input", agendarCalculoRotaAutomatica);
-$("cepOrigem").addEventListener("input", agendarCalculoRotaAutomatica);
-$("tipoMapa").addEventListener("change", () => {
-  ultimaChaveRotaAutomatica = "";
-  agendarCalculoRotaAutomatica();
-});
-$("modoLogistica").addEventListener("change", atualizarModoLogistica);
-
 $("btnCalcular").addEventListener("click", calcularOrcamento);
 $("btnLimpar").addEventListener("click", limparCampos);
 $("btnBuscarCep").addEventListener("click", async () => {
   await preencherEnderecosPorCep();
-  agendarCalculoRotaAutomatica();
 });
-$("btnRota").addEventListener("click", calcularRotaAutomatica);
-$("btnSalvarChave").addEventListener("click", salvarChaveGoogleMaps);
-$("btnLimparChave").addEventListener("click", limparChaveGoogleMaps);
-
-// Initialize Google Maps key status on load
-atualizarStatusChave();
-atualizarModoLogistica();
