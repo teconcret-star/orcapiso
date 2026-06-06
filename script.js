@@ -266,7 +266,7 @@ function clearFirestoreListeners() {
 }
 
 function clearFirebaseReconnectTimeout() {
-  if (!firebaseReconnectTimeoutId) return;
+  if (firebaseReconnectTimeoutId === null) return;
   window.clearTimeout(firebaseReconnectTimeoutId);
   firebaseReconnectTimeoutId = null;
 }
@@ -291,7 +291,7 @@ async function reconnectFirebase() {
 }
 
 function scheduleFirebaseReconnect() {
-  if (firebaseReconnectTimeoutId) return;
+  if (firebaseReconnectTimeoutId !== null) return;
   if (!window.firebase?.firestore) {
     updateFirebaseStatus(false);
     return;
@@ -2805,6 +2805,14 @@ function bindStaticEvents() {
   document.addEventListener("visibilitychange", () => {
     tentarLimparEstadoImpressao();
     if (!document.hidden) {
+      if (firebaseSyncEnabled && firestoreDb) {
+        bootstrapStorageFromFirebase().then(() => {
+          if (currentUserId) refreshAppFromStorage();
+        }).catch((error) => {
+          handleFirebaseConnectionError("Falha ao atualizar dados do Firebase ao voltar para o app:", error);
+        });
+        return;
+      }
       reconnectFirebase().then((connected) => {
         if (!connected) scheduleFirebaseReconnect();
       }).catch((error) => {
