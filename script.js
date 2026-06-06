@@ -176,7 +176,7 @@ async function readFirebasePath(path, fallback) {
   }
 }
 
-function queueFirebaseWrite(path, value) {
+function syncFirebasePath(path, value) {
   const ref = getFirebaseRef(path);
   if (!ref) return;
   ref.set(value).catch((error) => {
@@ -200,7 +200,7 @@ async function bootstrapStorageFromFirebase() {
     if (proposals && Array.isArray(proposals)) {
       writeJsonStorage(PROPOSALS_STORAGE_KEY, proposals);
     }
-    if (machineDb && typeof machineDb === "object") {
+    if (machineDb && !Array.isArray(machineDb) && typeof machineDb === "object") {
       writeJsonStorage(MACHINE_DB_STORAGE_KEY, machineDb);
     }
   } catch (error) {
@@ -400,7 +400,7 @@ function getUsers() {
 
 function saveUsers(list) {
   const success = writeJsonStorage(USERS_STORAGE_KEY, list);
-  if (success) queueFirebaseWrite(FIREBASE_USERS_PATH, list);
+  if (success) syncFirebasePath(FIREBASE_USERS_PATH, list);
   return success;
 }
 
@@ -410,7 +410,7 @@ function getSavedProposals() {
 
 function saveProposals(list) {
   const success = writeJsonStorage(PROPOSALS_STORAGE_KEY, list);
-  if (success) queueFirebaseWrite(FIREBASE_PROPOSALS_PATH, list);
+  if (success) syncFirebasePath(FIREBASE_PROPOSALS_PATH, list);
   return success;
 }
 
@@ -458,7 +458,7 @@ function getMachineDatabase() {
 function saveMachineDatabase(data) {
   const normalized = normalizeMachineDatabase(data);
   const success = writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalized);
-  if (success) queueFirebaseWrite(FIREBASE_MACHINE_DB_PATH, normalized);
+  if (success) syncFirebasePath(FIREBASE_MACHINE_DB_PATH, normalized);
   return success;
 }
 
