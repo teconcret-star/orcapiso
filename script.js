@@ -291,7 +291,11 @@ async function reconnectFirebase() {
 }
 
 function scheduleFirebaseReconnect() {
-  if (!window.firebase || firebaseReconnectTimeoutId) return;
+  if (firebaseReconnectTimeoutId) return;
+  if (!window.firebase?.firestore) {
+    updateFirebaseStatus(false);
+    return;
+  }
   updateFirebaseStatus(false);
   firebaseReconnectTimeoutId = window.setTimeout(async () => {
     firebaseReconnectTimeoutId = null;
@@ -376,7 +380,10 @@ function subscribeFirestoreChanges() {
       if (!Array.isArray(data)) return;
       writeJsonStorage(USERS_STORAGE_KEY, data);
       if (currentUserId) {
-        refreshAppFromStorage();
+        refreshCurrentUser();
+        renderUsersTable();
+        updateSessionInfo();
+        updateAppVisibility();
       }
     }, (error) => {
       handleFirebaseConnectionError("Erro ao escutar usuários:", error);
@@ -390,7 +397,8 @@ function subscribeFirestoreChanges() {
       if (!Array.isArray(data)) return;
       writeJsonStorage(PROPOSALS_STORAGE_KEY, data);
       if (currentUserId) {
-        refreshAppFromStorage();
+        renderizarTabelaPropostas();
+        renderDashboard();
       }
     }, (error) => {
       handleFirebaseConnectionError("Erro ao escutar propostas:", error);
@@ -404,7 +412,7 @@ function subscribeFirestoreChanges() {
       if (!data || typeof data !== "object" || Array.isArray(data)) return;
       writeJsonStorage(MACHINE_DB_STORAGE_KEY, data);
       if (currentUserId) {
-        refreshAppFromStorage();
+        applyMachineDatabaseToForm();
       }
     }, (error) => {
       handleFirebaseConnectionError("Erro ao escutar banco de máquinas:", error);
@@ -2797,7 +2805,9 @@ function bindStaticEvents() {
   document.addEventListener("visibilitychange", () => {
     tentarLimparEstadoImpressao();
     if (!document.hidden) {
-      reconnectFirebase().catch((error) => {
+      reconnectFirebase().then((connected) => {
+        if (!connected) scheduleFirebaseReconnect();
+      }).catch((error) => {
         handleFirebaseConnectionError("Falha ao restabelecer Firebase ao voltar para o app:", error);
       });
     }
