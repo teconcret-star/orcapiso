@@ -446,8 +446,8 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
 
 function clearFirestoreDraft(userId = currentUserId) {
   const docId = getDraftFirestoreDocId(userId);
-  const ref = getFirestoreDoc(docId);
   if (!docId) return;
+  const ref = getFirestoreDoc(docId);
   if (!ref) {
     scheduleFirebaseReconnect();
     return;
@@ -2350,7 +2350,7 @@ function salvarRascunhoLocal() {
 
 async function carregarRascunhoLocal() {
  if (!currentUserId) {
-   updateDraftStatus("Os dados do orçamento ficam salvos automaticamente.");
+   updateDraftStatus("Faça login para salvar o rascunho automaticamente.");
    return;
  }
 
@@ -2372,7 +2372,9 @@ async function carregarRascunhoLocal() {
      : localPayload;
 
  if (!payload) {
-   updateDraftStatus("Os dados do orçamento ficam salvos automaticamente.");
+   updateDraftStatus(firebaseSyncEnabled
+     ? "Os dados do orçamento ficam salvos automaticamente no Firestore."
+     : "Os dados do orçamento ficam salvos localmente até o Firestore reconectar.");
    return;
  }
 
