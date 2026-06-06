@@ -193,6 +193,55 @@ select {
   gap: 8px;
 }
 
+.table-wrap {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.table-wrap h3 {
+  margin: 0 0 10px;
+  color: var(--secondary);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.data-table th,
+.data-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.data-table th {
+  background: #f8fafc;
+  color: var(--secondary);
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-table {
+  min-height: auto;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+.btn-danger {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
+
 .btn {
   border: 0;
   border-radius: 10px;
@@ -400,8 +449,66 @@ select {
     align-items: stretch;
   }
 
+  .table-actions {
+    flex-direction: column;
+  }
+
   .topo h1 {
     font-size: 1.5rem;
+  }
+
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  @media print {
+    body.print-proposal {
+      background: #fff;
+    }
+
+    body.print-proposal .topo,
+    body.print-proposal .tabs,
+    body.print-proposal .card:not(.resultado-card),
+    body.print-proposal .acoes,
+    body.print-proposal .status-text,
+    body.print-proposal .table-wrap,
+    body.print-proposal #toast {
+      display: none !important;
+    }
+
+    body.print-proposal .container {
+      margin: 0;
+      padding: 0;
+      max-width: none;
+    }
+
+    body.print-proposal #tabPerfil,
+    body.print-proposal .resultado-card > h2,
+    body.print-proposal .resultado-card > .acoes,
+    body.print-proposal .resultado-card > .grid {
+      display: none !important;
+    }
+
+    body.print-proposal #tabProposta,
+    body.print-proposal .tab-panel {
+      display: block !important;
+    }
+
+    body.print-proposal .resultado-card {
+      box-shadow: none;
+      border: 0;
+      padding: 0;
+      margin: 0;
+      background: #fff;
+    }
+
+    body.print-proposal .proposta-preview {
+      border: 0;
+      border-radius: 0;
+      margin: 0;
+      padding: 0;
+    }
   }
 
   .container {

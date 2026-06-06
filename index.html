@@ -64,6 +64,25 @@
             <button id="btnSalvarPerfil" class="btn btn-primary">Salvar perfil</button>
             <button id="btnLimparPerfil" class="btn btn-secondary">Limpar perfil</button>
           </div>
+
+          <div class="table-wrap">
+            <h3>Perfis salvos</h3>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Vendedor</th>
+                  <th>Empresa</th>
+                  <th>Contato</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaPerfisBody">
+                <tr>
+                  <td colspan="4">Nenhum perfil salvo.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       </section>
 
@@ -364,20 +383,27 @@
 
           <div class="acoes acoes-wrap">
             <button id="btnSalvarProposta" class="btn btn-primary">Salvar proposta</button>
+            <button id="btnSalvarPdf" class="btn btn-secondary">Salvar em PDF</button>
             <button id="btnWhatsApp" class="btn btn-secondary">Enviar no WhatsApp</button>
           </div>
 
-          <div class="grid">
-            <div class="field">
-              <label for="propostasSalvas">Propostas salvas</label>
-              <select id="propostasSalvas">
-                <option value="">Selecione uma proposta salva</option>
-              </select>
-            </div>
-            <div class="field field-actions-inline">
-              <button id="btnCarregarProposta" class="btn btn-secondary">Carregar proposta</button>
-              <button id="btnExcluirProposta" class="btn btn-secondary">Excluir proposta</button>
-            </div>
+          <div class="table-wrap">
+            <h3>Propostas salvas</h3>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Título</th>
+                  <th>Cliente</th>
+                  <th>Data</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaPropostasBody">
+                <tr>
+                  <td colspan="4">Nenhuma proposta salva.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </section>
       </section>
