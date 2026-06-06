@@ -149,6 +149,7 @@ function atualizarPreviaPerfil() {
 
   if (profile.logoDataUrl) {
     prevLogo.src = profile.logoDataUrl;
+    prevLogo.alt = profile.empresa ? `Logo da empresa ${profile.empresa}` : "Logo da empresa";
     prevLogo.hidden = false;
   } else {
     prevLogo.hidden = true;
@@ -521,7 +522,7 @@ $("perfilLogo").addEventListener("change", (event) => {
 
   const reader = new FileReader();
   reader.onload = () => {
-    logoDataUrl = String(reader.result || "");
+    logoDataUrl = typeof reader.result === "string" ? reader.result : "";
     atualizarPreviaPerfil();
   };
   reader.readAsDataURL(file);
