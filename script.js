@@ -14,7 +14,7 @@ const ROLE_SELLER = "seller";
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "password2026";
 const PASSWORD_ITERATIONS = 120000;
-const PRINT_CLASS_CLEANUP_DELAY_MS = 500;
+const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
 const DEFAULT_MACHINE_DATABASE = {
@@ -58,6 +58,8 @@ let editingProposalId = "";
 let editingUserId = "";
 let currentUserId = "";
 let currentUser = null;
+let printProposalPendingCleanup = false;
+let printCleanupRetryTimeoutId = null;
 
 function toNumber(value) {
   const number = parseFloat(value);
@@ -1438,18 +1440,31 @@ function salvarPropostaEmPdf() {
     return;
   }
 
+  printProposalPendingCleanup = true;
   document.body.classList.add("print-proposal");
-  try {
-    window.print();
-  } finally {
-    window.setTimeout(() => {
-      limparEstadoImpressao();
-    }, PRINT_CLASS_CLEANUP_DELAY_MS);
-  }
+  window.print();
 }
 
 function limparEstadoImpressao() {
+  if (printCleanupRetryTimeoutId !== null) {
+    window.clearTimeout(printCleanupRetryTimeoutId);
+    printCleanupRetryTimeoutId = null;
+  }
+  printProposalPendingCleanup = false;
   document.body.classList.remove("print-proposal");
+}
+
+function tentarLimparEstadoImpressao() {
+  if (!printProposalPendingCleanup) return;
+  if (document.visibilityState === "visible") {
+    limparEstadoImpressao();
+    return;
+  }
+  if (printCleanupRetryTimeoutId !== null) return;
+  printCleanupRetryTimeoutId = window.setTimeout(() => {
+    printCleanupRetryTimeoutId = null;
+    tentarLimparEstadoImpressao();
+  }, PRINT_CLEANUP_RETRY_DELAY_MS);
 }
 
 async function trocarMinhaSenha(event) {
@@ -1780,6 +1795,12 @@ function bindStaticEvents() {
 
   window.addEventListener("afterprint", () => {
     limparEstadoImpressao();
+  });
+  window.addEventListener("focus", () => {
+    tentarLimparEstadoImpressao();
+  });
+  document.addEventListener("visibilitychange", () => {
+    tentarLimparEstadoImpressao();
   });
 }
 
