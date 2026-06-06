@@ -24,10 +24,10 @@ const FIREBASE_CONFIG = {
   appId: "1:966600923508:web:a42bfF27241586535b3421",
   measurementId: "G-Z6QWZ7LWGG"
 };
-const FIREBASE_ROOT_PATH = "orcamentoPiso";
-const FIREBASE_USERS_PATH = `${FIREBASE_ROOT_PATH}/users`;
-const FIREBASE_PROPOSALS_PATH = `${FIREBASE_ROOT_PATH}/proposals`;
-const FIREBASE_MACHINE_DB_PATH = `${FIREBASE_ROOT_PATH}/machineDatabase`;
+const FIRESTORE_COLLECTION = "orcamentoPiso";
+const FIRESTORE_USERS_DOC = "users";
+const FIRESTORE_PROPOSALS_DOC = "proposals";
+const FIRESTORE_MACHINE_DB_DOC = "machineDatabase";
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
@@ -74,7 +74,7 @@ let currentUserId = "";
 let currentUser = null;
 let printProposalPendingCleanup = false;
 let printCleanupRetryTimeoutId = null;
-let firebaseDb = null;
+let firestoreDb = null;
 let firebaseSyncEnabled = false;
 
 function toNumber(value) {
@@ -148,39 +148,39 @@ function initializeFirebaseConnection() {
     if (!window.firebase.apps?.length) {
       window.firebase.initializeApp(FIREBASE_CONFIG);
     }
-    firebaseDb = window.firebase.database();
+    firestoreDb = window.firebase.firestore();
     firebaseSyncEnabled = true;
     return true;
   } catch (error) {
     console.error("Falha ao inicializar Firebase:", error);
-    firebaseDb = null;
+    firestoreDb = null;
     firebaseSyncEnabled = false;
     return false;
   }
 }
 
-function getFirebaseRef(path) {
-  if (!firebaseSyncEnabled || !firebaseDb) return null;
-  return firebaseDb.ref(path);
+function getFirestoreDoc(docId) {
+  if (!firebaseSyncEnabled || !firestoreDb) return null;
+  return firestoreDb.collection(FIRESTORE_COLLECTION).doc(docId);
 }
 
-async function readFirebasePath(path, fallback) {
-  const ref = getFirebaseRef(path);
+async function readFirestoreDoc(docId, fallback) {
+  const ref = getFirestoreDoc(docId);
   if (!ref) return fallback;
   try {
-    const snapshot = await ref.once("value");
-    return snapshot.exists() ? snapshot.val() : fallback;
+    const snap = await ref.get();
+    return snap.exists ? (snap.data()?.data ?? fallback) : fallback;
   } catch (error) {
-    console.error(`Falha ao ler ${path}:`, error);
+    console.error(`Falha ao ler ${docId}:`, error);
     return fallback;
   }
 }
 
-function syncFirebasePath(path, value) {
-  const ref = getFirebaseRef(path);
+function syncFirestoreDoc(docId, value) {
+  const ref = getFirestoreDoc(docId);
   if (!ref) return;
-  ref.set(value).catch((error) => {
-    console.error(`Falha ao sincronizar ${path}:`, error);
+  ref.set({ data: value }).catch((error) => {
+    console.error(`Falha ao sincronizar ${docId}:`, error);
   });
 }
 
@@ -189,9 +189,9 @@ async function bootstrapStorageFromFirebase() {
 
   try {
     const [users, proposals, machineDb] = await Promise.all([
-      readFirebasePath(FIREBASE_USERS_PATH, null),
-      readFirebasePath(FIREBASE_PROPOSALS_PATH, null),
-      readFirebasePath(FIREBASE_MACHINE_DB_PATH, null)
+      readFirestoreDoc(FIRESTORE_USERS_DOC, null),
+      readFirestoreDoc(FIRESTORE_PROPOSALS_DOC, null),
+      readFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, null)
     ]);
 
     if (users && Array.isArray(users)) {
@@ -400,7 +400,7 @@ function getUsers() {
 
 function saveUsers(list) {
   const success = writeJsonStorage(USERS_STORAGE_KEY, list);
-  if (success) syncFirebasePath(FIREBASE_USERS_PATH, list);
+  if (success) syncFirestoreDoc(FIRESTORE_USERS_DOC, list);
   return success;
 }
 
@@ -410,7 +410,7 @@ function getSavedProposals() {
 
 function saveProposals(list) {
   const success = writeJsonStorage(PROPOSALS_STORAGE_KEY, list);
-  if (success) syncFirebasePath(FIREBASE_PROPOSALS_PATH, list);
+  if (success) syncFirestoreDoc(FIRESTORE_PROPOSALS_DOC, list);
   return success;
 }
 
@@ -458,7 +458,7 @@ function getMachineDatabase() {
 function saveMachineDatabase(data) {
   const normalized = normalizeMachineDatabase(data);
   const success = writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalized);
-  if (success) syncFirebasePath(FIREBASE_MACHINE_DB_PATH, normalized);
+  if (success) syncFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, normalized);
   return success;
 }
 
