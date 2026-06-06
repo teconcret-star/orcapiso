@@ -367,6 +367,21 @@ function atualizarModoFuncionarios({ preserveManualValue = true } = {}) {
   }
 }
 
+function atualizarCampoPisoTela({ preserveValueWhenDisabled = false } = {}) {
+  const pisoTelaEl = $("pisoTela");
+  const valorTelaM2El = $("valorTelaM2");
+  const infoPisoTelaEl = $("infoPisoTela");
+  if (!pisoTelaEl || !valorTelaM2El || !infoPisoTelaEl) return;
+  const comTela = pisoTelaEl.value === "com_tela";
+  valorTelaM2El.disabled = !comTela;
+  if (!comTela && !preserveValueWhenDisabled) {
+    valorTelaM2El.value = "";
+  }
+  infoPisoTelaEl.textContent = comTela
+    ? "Informe o valor por m² da tela para somar ao custo final do piso."
+    : "Disponível apenas quando o piso for com tela.";
+}
+
 async function buscarDadosCep(cep) {
   const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
   if (!response.ok) throw new Error("Falha ao consultar CEP.");
@@ -771,6 +786,9 @@ function proposalFieldsSnapshot() {
     "encargos",
     "alimentacaoFuncionario",
     "hotelFuncionario",
+    "terraplanagemTotal",
+    "pisoTela",
+    "valorTelaM2",
     "outrosCustos",
     "lucro",
     "viagens",
@@ -796,6 +814,7 @@ function applyProposalSnapshot(snapshot = {}) {
     if ($(id)) $(id).value = snapshot[id];
   });
   atualizarModoFuncionarios();
+  atualizarCampoPisoTela({ preserveValueWhenDisabled: true });
   calcularOrcamento();
 }
 
@@ -1223,6 +1242,10 @@ function calcularOrcamento() {
   const encargos = toNumber($("encargos").value);
   const alimentacaoFuncionario = toNumber($("alimentacaoFuncionario").value);
   const hotelFuncionario = toNumber($("hotelFuncionario").value);
+  const terraplanagemTotal = toNumber($("terraplanagemTotal").value);
+  const pisoComTela = $("pisoTela").value === "com_tela";
+  const valorTelaM2 = pisoComTela ? toNumber($("valorTelaM2").value) : 0;
+  const custoTelaTotal = metragem > 0 ? valorTelaM2 * metragem : 0;
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
   const machineDb = getMachineDatabase();
@@ -1266,6 +1289,8 @@ function calcularOrcamento() {
     + custoDiscos
     + custoCombustivelMaquinas
     + encargos
+    + terraplanagemTotal
+    + custoTelaTotal
     + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
   const total = subtotal + valorLucro;
@@ -1347,6 +1372,9 @@ function limparCampos() {
     "encargos",
     "alimentacaoFuncionario",
     "hotelFuncionario",
+    "terraplanagemTotal",
+    "pisoTela",
+    "valorTelaM2",
     "outrosCustos",
     "lucro",
     "propostaTitulo",
@@ -1367,9 +1395,11 @@ function limparCampos() {
   $("viagens").value = 1;
   $("quantidadeVeiculos").value = 1;
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
+  $("pisoTela").value = "sem_tela";
   $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   editingProposalId = "";
   atualizarModoFuncionarios({ preserveManualValue: false });
+  atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
   atualizarTextoBotaoProposta();
   if (currentUserId) {
     localStorage.removeItem(getDraftStorageKey());
@@ -1950,6 +1980,12 @@ function bindStaticEvents() {
     salvarRascunhoLocal();
   });
 
+  $("pisoTela").addEventListener("change", () => {
+    atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
+    calcularOrcamento();
+    salvarRascunhoLocal();
+  });
+
   $("funcionarios").addEventListener("input", () => {
     if (getModoFuncionarios() === WORKER_MODE_MANUAL) {
       calcularOrcamento();
@@ -1978,6 +2014,8 @@ function bindStaticEvents() {
     "encargos",
     "alimentacaoFuncionario",
     "hotelFuncionario",
+    "terraplanagemTotal",
+    "valorTelaM2",
     "outrosCustos",
     "lucro",
     "propostaTitulo",
@@ -2059,6 +2097,7 @@ async function init() {
   restoreSession();
   atualizarTextoBotaoProposta();
   atualizarModoFuncionarios({ preserveManualValue: false });
+  atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
   if (!$("propostaTextoPadrao").value.trim()) {
     $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   }
