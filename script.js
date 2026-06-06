@@ -344,7 +344,8 @@ function calcularFuncionariosPorMetragem(metragem) {
 }
 
 function isModoManualLogistica() {
-  return $("modoLogistica").value === "MANUAL";
+  const modoLogistica = $("modoLogistica");
+  return modoLogistica ? modoLogistica.value === "MANUAL" : false;
 }
 
 function atualizarModoLogistica() {
