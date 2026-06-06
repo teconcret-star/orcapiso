@@ -59,6 +59,39 @@ body {
   padding: 0 16px 40px;
 }
 
+body.auth-view {
+  background: linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%);
+}
+
+body.auth-view .app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body.auth-view .topo {
+  display: none;
+}
+
+body.auth-view .container {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+body.auth-view .auth-card {
+  width: min(900px, 100%);
+  margin: 0;
+}
+
+body.auth-view .auth-card h2 {
+  font-size: 1.5rem;
+}
+
 .auth-card {
   overflow: hidden;
 }
@@ -280,6 +313,16 @@ select {
 .table-wrap {
   margin-top: 12px;
   overflow-x: auto;
+}
+
+.table-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.table-scroll .field {
+  margin-bottom: 12px;
 }
 
 .table-wrap h3 {

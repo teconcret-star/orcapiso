@@ -29,6 +29,8 @@ const FIRESTORE_USERS_DOC = "users";
 const FIRESTORE_PROPOSALS_DOC = "proposals";
 const FIRESTORE_MACHINE_DB_DOC = "machineDatabase";
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
+const IFRAME_CLEANUP_DELAY_MS = 600;
+const IFRAME_PRINT_FALLBACK_TIMEOUT_MS = 2000;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
 const DEFAULT_MACHINE_DATABASE = {
@@ -113,6 +115,24 @@ function createUniqueId() {
 
 function normalizeEmail(value) {
   return (value || "").trim().toLowerCase();
+}
+
+function normalizeFilterText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function getFilterQuery(fieldId) {
+  const field = $(fieldId);
+  return normalizeFilterText(field?.value || "");
+}
+
+function matchesFilter(values, query) {
+  if (!query) return true;
+  return normalizeFilterText(values.join(" ")).includes(query);
 }
 
 function formatRole(role) {
@@ -638,6 +658,7 @@ function updateTabVisibility() {
 
 function updateAppVisibility() {
   const authenticated = Boolean(currentUser);
+  document.body.classList.toggle("auth-view", !authenticated);
   $("authSection").hidden = authenticated;
   $("appContent").hidden = !authenticated;
 }
@@ -782,16 +803,21 @@ function renderizarTabelaPropostas() {
   const tbody = $("tabelaPropostasBody");
   const list = getVisibleProposals();
   const showOwner = isAdmin();
+  const query = getFilterQuery("filtroTabelaPropostas");
+  const filteredList = list.filter((item) => {
+    const rowData = [item.titulo, item.cliente, item.data, item.ownerName, item.ownerEmail];
+    return matchesFilter(rowData, query);
+  });
 
   $("colunaPropostaVendedor").hidden = !showOwner;
   $("propostasTituloSecao").textContent = showOwner ? "Todas as propostas geradas" : "Minhas propostas salvas";
   tbody.innerHTML = "";
 
-  if (!list.length) {
+  if (!filteredList.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
     cell.colSpan = showOwner ? 5 : 4;
-    cell.textContent = "Nenhuma proposta salva.";
+    cell.textContent = query ? "Nenhuma proposta encontrada para o filtro informado." : "Nenhuma proposta salva.";
     row.appendChild(cell);
     tbody.appendChild(row);
     return;
@@ -799,7 +825,7 @@ function renderizarTabelaPropostas() {
 
   const fragment = document.createDocumentFragment();
 
-  list.forEach((item) => {
+  filteredList.forEach((item) => {
     const row = document.createElement("tr");
     const titulo = document.createElement("td");
     titulo.textContent = item.titulo || "-";
@@ -846,6 +872,7 @@ function renderDashboard() {
   const sellers = users.filter((user) => user.role === ROLE_SELLER);
   const proposals = getSavedProposals();
   const tbody = $("tabelaDashboardBody");
+  const query = getFilterQuery("filtroTabelaDashboard");
 
   $("dashboardTotalVendedores").textContent = String(sellers.length);
   $("dashboardVendedoresAtivos").textContent = String(sellers.filter((user) => user.active).length);
@@ -873,16 +900,18 @@ function renderDashboard() {
     const totalValue = sellerProposals.reduce((acc, item) => acc + toNumber(item.total), 0);
     const averageTicket = sellerProposals.length ? totalValue / sellerProposals.length : 0;
     const latestTimestamp = sellerProposals.reduce((latest, item) => Math.max(latest, toNumber(item.timestamp)), 0);
-    const row = document.createElement("tr");
-
-    [
+    const rowData = [
       seller.name,
       seller.active ? "Ativo" : "Inativo",
       String(sellerProposals.length),
       formatMoney(totalValue),
       formatMoney(averageTicket),
       latestTimestamp ? formatDate(latestTimestamp) : "-"
-    ].forEach((value) => {
+    ];
+    if (!matchesFilter(rowData, query)) return;
+    const row = document.createElement("tr");
+
+    rowData.forEach((value) => {
       const cell = document.createElement("td");
       cell.textContent = value;
       row.appendChild(cell);
@@ -890,6 +919,16 @@ function renderDashboard() {
 
     fragment.appendChild(row);
   });
+
+  if (!fragment.childNodes.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 6;
+    cell.textContent = "Nenhum resultado encontrado para o filtro informado.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
+    return;
+  }
 
   tbody.appendChild(fragment);
 }
@@ -928,6 +967,7 @@ function renderUsersTable() {
 
   const tbody = $("tabelaUsuariosBody");
   const users = getUsers();
+  const query = getFilterQuery("filtroTabelaUsuarios");
   tbody.innerHTML = "";
 
   if (!users.length) {
@@ -943,6 +983,14 @@ function renderUsersTable() {
   const fragment = document.createDocumentFragment();
 
   users.forEach((user) => {
+    const rowData = [
+      user.name || "-",
+      user.email || "-",
+      formatRole(user.role),
+      user.active ? "Ativo" : "Inativo"
+    ];
+    if (!matchesFilter(rowData, query)) return;
+
     const row = document.createElement("tr");
     const actions = document.createElement("td");
     actions.className = "table-actions";
@@ -966,12 +1014,7 @@ function renderUsersTable() {
 
     actions.append(btnEditar, btnAlternar);
 
-    [
-      user.name || "-",
-      user.email || "-",
-      formatRole(user.role),
-      user.active ? "Ativo" : "Inativo"
-    ].forEach((value) => {
+    rowData.forEach((value) => {
       const cell = document.createElement("td");
       cell.textContent = value;
       row.appendChild(cell);
@@ -980,6 +1023,16 @@ function renderUsersTable() {
     row.appendChild(actions);
     fragment.appendChild(row);
   });
+
+  if (!fragment.childNodes.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.textContent = "Nenhum usuário encontrado para o filtro informado.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
+    return;
+  }
 
   tbody.appendChild(fragment);
 }
@@ -1523,12 +1576,111 @@ function gerarMensagemWhatsApp() {
   window.open(`https://wa.me/?text=${encodeURIComponent(mensagem)}`, "_blank");
 }
 
-function salvarPropostaEmPdf() {
+async function imprimirSomenteProposta() {
+  const proposta = document.querySelector(".proposta-preview");
+  if (!proposta) return false;
+
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+
+  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!iframeDoc) {
+    iframe.remove();
+    return false;
+  }
+
+  iframeDoc.open();
+  iframeDoc.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proposta Comercial</title>
+  <style>
+    @page { size: A4; margin: 8mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #0f172a; }
+    .proposta-preview { width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; font-size: 0.69rem; }
+    .proposta-cabecalho { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+    .proposta-cabecalho-logo { min-height: 80px; min-width: 80px; }
+    .logo-proposta { width: 80px; height: 80px; object-fit: contain; border-radius: 999px; }
+    .proposta-cabecalho-empresa { margin-left: auto; text-align: right; }
+    .proposta-cabecalho-empresa h3 { margin: 0 0 2px; font-size: 1.3rem; color: #166534; }
+    .proposta-cabecalho-empresa p { margin: 0; line-height: 1.3; font-size: 0.92rem; }
+    .proposta-faixa { height: 3px; margin: 12px 0 10px; background: #166534; }
+    .proposta-local-data, .proposta-identificacao, .proposta-dados-cliente, .proposta-secao { margin-bottom: 10px; }
+    .proposta-local-data p, .proposta-identificacao p, .proposta-dados-cliente p, .proposta-condicoes p { margin: 0 0 4px; line-height: 1.25; }
+    .proposta-identificacao p, .proposta-dados-cliente p:first-child, .proposta-secao h4 { font-weight: 700; }
+    .proposta-secao h4 { margin: 0 0 6px; padding: 4px 8px; font-size: 0.85rem; background: #e5e7eb; text-transform: uppercase; text-decoration: underline; }
+    .proposta-secao p { margin: 0; line-height: 1.3; }
+    .proposal-table-wrap { margin-top: 0; overflow: visible; }
+    .proposal-table { width: 100%; border-collapse: collapse; border-radius: 0; }
+    .proposal-table th, .proposal-table td { text-align: center; border: 1px solid #9ca3af; padding: 6px 4px; font-size: 0.9rem; }
+    .proposal-table th { background: #e5e7eb; color: #111827; }
+    .proposal-table td { font-weight: 700; }
+    .proposta-assinaturas { margin-top: 10px; padding-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+    .assinatura-box { text-align: center; }
+    .assinatura-box p, .assinatura-box strong { margin: 3px 0 0; }
+    .assinatura-linha { height: 1px; background: #111827; margin-bottom: 8px; }
+    .no-print { display: none !important; }
+  </style>
+</head>
+<body>${proposta.outerHTML}</body>
+</html>`);
+  iframeDoc.close();
+
+  await Promise.all(
+    Array.from(iframeDoc.images || []).map((image) => new Promise((resolve) => {
+      if (image.complete) {
+        resolve();
+        return;
+      }
+      image.addEventListener("load", resolve, { once: true });
+      image.addEventListener("error", resolve, { once: true });
+    }))
+  );
+
+  const printWindow = iframe.contentWindow;
+  if (!printWindow) {
+    iframe.remove();
+    return false;
+  }
+
+  let iframeRemoved = false;
+  let cleanupTimerId = null;
+  const removeIframe = () => {
+    if (iframeRemoved) return;
+    iframeRemoved = true;
+    if (cleanupTimerId !== null) {
+      window.clearTimeout(cleanupTimerId);
+    }
+    window.setTimeout(() => {
+      iframe.remove();
+    }, IFRAME_CLEANUP_DELAY_MS);
+  };
+
+  printWindow.addEventListener("afterprint", removeIframe, { once: true });
+  printWindow.focus();
+  printWindow.print();
+  cleanupTimerId = window.setTimeout(removeIframe, IFRAME_PRINT_FALLBACK_TIMEOUT_MS);
+  return true;
+}
+
+async function salvarPropostaEmPdf() {
   const resumo = calcularOrcamento();
   if (resumo.total <= 0) {
     showToast("Calcule um orçamento válido antes de salvar em PDF.", true);
     return;
   }
+
+  const openedPrintDialog = await imprimirSomenteProposta();
+  if (openedPrintDialog) return;
 
   printProposalPendingCleanup = true;
   document.body.classList.add("print-proposal");
@@ -1751,6 +1903,9 @@ function bindStaticEvents() {
   $("btnSalvarProposta").addEventListener("click", salvarProposta);
   $("btnSalvarPdf").addEventListener("click", salvarPropostaEmPdf);
   $("btnWhatsApp").addEventListener("click", gerarMensagemWhatsApp);
+  $("filtroTabelaPropostas").addEventListener("input", renderizarTabelaPropostas);
+  $("filtroTabelaUsuarios").addEventListener("input", renderUsersTable);
+  $("filtroTabelaDashboard").addEventListener("input", renderDashboard);
 
   $("documento").addEventListener("input", (event) => {
     event.target.value = formatarDocumento(event.target.value);

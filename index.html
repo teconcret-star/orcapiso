@@ -594,8 +594,12 @@
               <button id="btnWhatsApp" class="btn btn-secondary">Enviar no WhatsApp</button>
             </div>
 
-            <div class="table-wrap">
+            <div class="table-wrap table-scroll">
               <h3 id="propostasTituloSecao">Minhas propostas salvas</h3>
+              <div class="field">
+                <label for="filtroTabelaPropostas">Filtrar propostas</label>
+                <input type="text" id="filtroTabelaPropostas" placeholder="Digite título, cliente, data ou vendedor" />
+              </div>
               <table class="data-table">
                 <thead>
                   <tr>
@@ -658,7 +662,11 @@
 
           <section class="card">
             <h2>Usuários cadastrados</h2>
-            <div class="table-wrap">
+            <div class="table-wrap table-scroll">
+              <div class="field">
+                <label for="filtroTabelaUsuarios">Filtrar usuários</label>
+                <input type="text" id="filtroTabelaUsuarios" placeholder="Digite nome, e-mail, tipo ou status" />
+              </div>
               <table class="data-table">
                 <thead>
                   <tr>
@@ -704,7 +712,11 @@
 
           <section class="card">
             <h2>Resultado por vendedor</h2>
-            <div class="table-wrap">
+            <div class="table-wrap table-scroll">
+              <div class="field">
+                <label for="filtroTabelaDashboard">Filtrar dashboard</label>
+                <input type="text" id="filtroTabelaDashboard" placeholder="Digite vendedor, status, propostas, valor ou ticket" />
+              </div>
               <table class="data-table">
                 <thead>
                   <tr>
