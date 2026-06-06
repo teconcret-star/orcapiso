@@ -257,6 +257,7 @@ function initializeFirebaseConnection() {
       window.firebase.initializeApp(FIREBASE_CONFIG);
     }
     firestoreDb = window.firebase.firestore();
+    firestoreDb.settings({ experimentalForceLongPolling: true, merge: true });
     firebaseSyncEnabled = true;
     return true;
   } catch (error) {
