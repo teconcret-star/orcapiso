@@ -3,8 +3,12 @@ const $ = (id) => document.getElementById(id);
 const M2_PER_WORKER = 100;
 const PROFILE_STORAGE_KEY = "proposta_perfil_v1";
 const PROPOSALS_STORAGE_KEY = "propostas_salvas_v1";
+const DRAFT_STORAGE_KEY = "proposta_rascunho_v1";
+const WORKER_MODE_AUTO = "auto";
+const WORKER_MODE_MANUAL = "manual";
 
 let logoDataUrl = "";
+let toastTimeoutId;
 
 function toNumber(value) {
   const number = parseFloat(value);
@@ -27,6 +31,46 @@ function formatNumber(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+}
+
+function readJsonStorage(key, fallback) {
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    localStorage.removeItem(key);
+    return fallback;
+  }
+}
+
+function writeJsonStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    showToast("Não foi possível salvar os dados neste aparelho.", true);
+    return false;
+  }
+}
+
+function showToast(message, isError = false) {
+  const toast = $("toast");
+  toast.textContent = message;
+  toast.hidden = false;
+  toast.classList.toggle("error", isError);
+
+  clearTimeout(toastTimeoutId);
+  toastTimeoutId = window.setTimeout(() => {
+    toast.hidden = true;
+  }, 2800);
+}
+
+function updateDraftStatus(message, isError = false) {
+  const status = $("draftStatus");
+  status.textContent = message;
+  status.classList.toggle("error", isError);
 }
 
 function formatarCep(value) {
@@ -66,6 +110,29 @@ function calcularFuncionariosPorMetragem(metragem) {
   return metragem > 0 ? Math.ceil(metragem / M2_PER_WORKER) : 0;
 }
 
+function getModoFuncionarios() {
+  return $("modoFuncionarios").value === WORKER_MODE_MANUAL ? WORKER_MODE_MANUAL : WORKER_MODE_AUTO;
+}
+
+function atualizarModoFuncionarios({ preserveManualValue = true } = {}) {
+  const modo = getModoFuncionarios();
+  const funcionariosEl = $("funcionarios");
+  const funcionariosAutomaticos = calcularFuncionariosPorMetragem(toNumber($("metragem").value));
+
+  funcionariosEl.readOnly = modo !== WORKER_MODE_MANUAL;
+
+  if (modo === WORKER_MODE_MANUAL) {
+    $("infoFuncionarios").textContent = "Modo manual: informe a quantidade desejada para esta obra.";
+
+    if (!preserveManualValue || !funcionariosEl.value) {
+      funcionariosEl.value = funcionariosAutomaticos;
+    }
+  } else {
+    $("infoFuncionarios").textContent = "Regra automática: 1 funcionário a cada 100 m²";
+    funcionariosEl.value = funcionariosAutomaticos;
+  }
+}
+
 async function buscarDadosCep(cep) {
   const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
   if (!response.ok) throw new Error("Falha ao consultar CEP.");
@@ -80,7 +147,7 @@ async function preencherEnderecoPorCepInput({ cepFieldId, enderecoFieldId, label
   const cep = onlyDigits(cepEl.value).slice(0, 8);
 
   if (cep.length !== 8) {
-    if (alertOnError) alert(`Informe um CEP válido de 8 dígitos para ${labelErro}.`);
+    if (alertOnError) showToast(`Informe um CEP válido de 8 dígitos para ${labelErro}.`, true);
     return;
   }
 
@@ -91,13 +158,15 @@ async function preencherEnderecoPorCepInput({ cepFieldId, enderecoFieldId, label
       .join(" - ");
     cepEl.value = formatarCep(cep);
     enderecoEl.value = endereco || enderecoEl.value;
+    return true;
   } catch (error) {
-    if (alertOnError) alert(error.message || "Não foi possível buscar o CEP.");
+    if (alertOnError) showToast(error.message || "Não foi possível buscar o CEP.", true);
+    return false;
   }
 }
 
 async function preencherEnderecosPorCep() {
-  await Promise.all([
+  const results = await Promise.all([
     preencherEnderecoPorCepInput({
       cepFieldId: "cepOrigem",
       enderecoFieldId: "enderecoOrigem",
@@ -111,6 +180,12 @@ async function preencherEnderecosPorCep() {
       alertOnError: false
     })
   ]);
+
+  if (results.some(Boolean)) {
+    showToast("Endereços atualizados com sucesso.");
+  } else {
+    showToast("Não foi possível preencher os endereços. Revise os CEPs informados.", true);
+  }
 }
 
 function getProfileFromForm() {
@@ -159,25 +234,22 @@ function atualizarPreviaPerfil() {
 
 function salvarPerfil() {
   const profile = getProfileFromForm();
-  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+  if (!writeJsonStorage(PROFILE_STORAGE_KEY, profile)) return;
   atualizarPreviaPerfil();
-  alert("Perfil salvo com sucesso.");
+  showToast("Perfil salvo com sucesso.");
 }
 
 function carregarPerfil() {
-  const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
-  if (!raw) return;
-  try {
-    applyProfileToForm(JSON.parse(raw));
-  } catch {
-    localStorage.removeItem(PROFILE_STORAGE_KEY);
-  }
+  const profile = readJsonStorage(PROFILE_STORAGE_KEY, null);
+  if (!profile) return;
+  applyProfileToForm(profile);
 }
 
 function limparPerfil() {
   applyProfileToForm({});
   $("perfilLogo").value = "";
   localStorage.removeItem(PROFILE_STORAGE_KEY);
+  showToast("Perfil removido deste aparelho.");
 }
 
 function calcularOrcamento() {
@@ -196,17 +268,26 @@ function calcularOrcamento() {
   const consumoMaquinas = toNumber($("consumoMaquinas").value);
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
+  const funcionariosAutomaticos = calcularFuncionariosPorMetragem(metragem);
+  const modoFuncionarios = getModoFuncionarios();
+  const funcionariosSelecionados =
+    modoFuncionarios === WORKER_MODE_MANUAL
+      ? Math.max(0, Math.round(toNumber($("funcionarios").value)))
+      : funcionariosAutomaticos;
 
-  const funcionariosCalculados = calcularFuncionariosPorMetragem(metragem);
-  $("funcionarios").value = funcionariosCalculados;
+  if (modoFuncionarios === WORKER_MODE_AUTO) {
+    $("funcionarios").value = funcionariosAutomaticos;
+  } else {
+    $("funcionarios").value = funcionariosSelecionados;
+  }
 
   const multiplicadorViagens = viagens > 0 ? viagens : 1;
   const distanciaTotal = distancia * multiplicadorViagens;
   const custoCombustivel = consumo > 0 ? (distanciaTotal / consumo) * precoCombustivel : 0;
   const custoPedagio = pedagio * multiplicadorViagens;
   const custoDeslocamento = custoCombustivel + custoPedagio;
-  const custoMaoDeObra = funcionariosCalculados * valorDia * dias;
-  const custoAlimentacao = funcionariosCalculados * alimentacaoFuncionario * dias;
+  const custoMaoDeObra = funcionariosSelecionados * valorDia * dias;
+  const custoAlimentacao = funcionariosSelecionados * alimentacaoFuncionario * dias;
   const custoCombustivelMaquinas = consumoMaquinas * precoCombustivel;
   const subtotal =
     custoDeslocamento + custoMaoDeObra + custoAlimentacao + custoCombustivelMaquinas + encargos + outrosCustos;
@@ -222,7 +303,7 @@ function calcularOrcamento() {
   $("resPedagio").textContent = formatMoney(custoPedagio);
   $("resDeslocamento").textContent = formatMoney(custoDeslocamento);
   $("resMaoDeObra").textContent = formatMoney(custoMaoDeObra);
-  $("resFuncionarios").textContent = String(funcionariosCalculados);
+  $("resFuncionarios").textContent = String(funcionariosSelecionados);
   $("resAlimentacao").textContent = formatMoney(custoAlimentacao);
   $("resCombustivelMaquinas").textContent = formatMoney(custoCombustivelMaquinas);
   $("resEncargos").textContent = formatMoney(encargos);
@@ -238,6 +319,15 @@ function calcularOrcamento() {
   $("prevPagamento").textContent = $("propostaPagamento").value.trim() || "-";
   $("prevObservacoes").textContent = `Observações: ${$("propostaObservacoes").value.trim() || "-"}`;
   atualizarPreviaPerfil();
+
+  return {
+    cliente,
+    obra,
+    metragem,
+    total,
+    valorM2,
+    funcionariosSelecionados
+  };
 }
 
 function limparCampos() {
@@ -257,6 +347,7 @@ function limparCampos() {
     "precoCombustivel",
     "pedagio",
     "consumoMaquinas",
+    "modoFuncionarios",
     "funcionarios",
     "valorDia",
     "dias",
@@ -276,7 +367,12 @@ function limparCampos() {
   });
 
   $("viagens").value = 1;
+  $("modoFuncionarios").value = WORKER_MODE_AUTO;
+  atualizarModoFuncionarios({ preserveManualValue: false });
+  localStorage.removeItem(DRAFT_STORAGE_KEY);
+  updateDraftStatus("Rascunho limpo deste aparelho.");
   calcularOrcamento();
+  showToast("Campos limpos com sucesso.");
 }
 
 function proposalFieldsSnapshot() {
@@ -296,6 +392,8 @@ function proposalFieldsSnapshot() {
     "precoCombustivel",
     "pedagio",
     "consumoMaquinas",
+    "modoFuncionarios",
+    "funcionarios",
     "valorDia",
     "dias",
     "encargos",
@@ -320,19 +418,39 @@ function applyProposalSnapshot(snapshot = {}) {
   Object.keys(snapshot).forEach((id) => {
     if ($(id)) $(id).value = snapshot[id];
   });
+  atualizarModoFuncionarios();
   calcularOrcamento();
 }
 
 function getSavedProposals() {
-  try {
-    return JSON.parse(localStorage.getItem(PROPOSALS_STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
+  return readJsonStorage(PROPOSALS_STORAGE_KEY, []);
 }
 
 function saveProposals(list) {
-  localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(list));
+  return writeJsonStorage(PROPOSALS_STORAGE_KEY, list);
+}
+
+function salvarRascunhoLocal() {
+  const saved = writeJsonStorage(DRAFT_STORAGE_KEY, proposalFieldsSnapshot());
+
+  if (saved) {
+    updateDraftStatus(`Rascunho salvo automaticamente às ${new Date().toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit"
+    })}.`);
+  }
+}
+
+function carregarRascunhoLocal() {
+  const snapshot = readJsonStorage(DRAFT_STORAGE_KEY, null);
+
+  if (!snapshot) {
+    updateDraftStatus("Os dados do orçamento ficam salvos automaticamente neste aparelho.");
+    return;
+  }
+
+  applyProposalSnapshot(snapshot);
+  updateDraftStatus("Rascunho local restaurado neste aparelho.");
 }
 
 function atualizarListaPropostas() {
@@ -350,7 +468,13 @@ function atualizarListaPropostas() {
 }
 
 function salvarProposta() {
-  calcularOrcamento();
+  const resumo = calcularOrcamento();
+
+  if (resumo.total <= 0) {
+    showToast("Preencha os valores da proposta antes de salvar.", true);
+    return;
+  }
+
   const list = getSavedProposals();
   const now = new Date();
   const proposta = {
@@ -362,41 +486,52 @@ function salvarProposta() {
   };
 
   list.unshift(proposta);
-  saveProposals(list);
+  if (!saveProposals(list)) return;
   atualizarListaPropostas();
   $("propostasSalvas").value = proposta.id;
-  alert("Proposta salva no armazenamento local.");
+  salvarRascunhoLocal();
+  showToast("Proposta salva no armazenamento local.");
 }
 
 function carregarPropostaSelecionada() {
   const id = $("propostasSalvas").value;
   if (!id) {
-    alert("Selecione uma proposta para carregar.");
+    showToast("Selecione uma proposta para carregar.", true);
     return;
   }
 
   const proposta = getSavedProposals().find((item) => item.id === id);
   if (!proposta) {
-    alert("Proposta não encontrada.");
+    showToast("Proposta não encontrada.", true);
     return;
   }
 
   applyProposalSnapshot(proposta.snapshot);
+  salvarRascunhoLocal();
+  showToast("Proposta carregada com sucesso.");
 }
 
 function excluirPropostaSelecionada() {
   const id = $("propostasSalvas").value;
   if (!id) {
-    alert("Selecione uma proposta para excluir.");
+    showToast("Selecione uma proposta para excluir.", true);
     return;
   }
 
   const list = getSavedProposals().filter((item) => item.id !== id);
-  saveProposals(list);
+  if (!saveProposals(list)) return;
   atualizarListaPropostas();
+  $("propostasSalvas").value = "";
+  showToast("Proposta excluída do armazenamento local.");
 }
 
 function gerarMensagemWhatsApp() {
+  const resumo = calcularOrcamento();
+  if (resumo.total <= 0) {
+    showToast("Calcule um orçamento válido antes de enviar no WhatsApp.", true);
+    return;
+  }
+
   const profile = getProfileFromForm();
   const mensagem = [
     `*${$("propostaTitulo").value.trim() || "Proposta Comercial"}*`,
@@ -469,6 +604,7 @@ $("cepOrigem").addEventListener("blur", async () => {
     enderecoFieldId: "enderecoOrigem",
     labelErro: "a unidade base"
   });
+  salvarRascunhoLocal();
 });
 
 $("cep").addEventListener("blur", async () => {
@@ -477,16 +613,38 @@ $("cep").addEventListener("blur", async () => {
     enderecoFieldId: "endereco",
     labelErro: "a obra"
   });
+  salvarRascunhoLocal();
 });
 
 $("metragem").addEventListener("input", () => {
-  $("funcionarios").value = calcularFuncionariosPorMetragem(toNumber($("metragem").value));
+  atualizarModoFuncionarios();
+  calcularOrcamento();
+  salvarRascunhoLocal();
+});
+
+$("modoFuncionarios").addEventListener("change", () => {
+  atualizarModoFuncionarios({ preserveManualValue: false });
+  calcularOrcamento();
+  salvarRascunhoLocal();
+});
+
+$("funcionarios").addEventListener("input", () => {
+  if (getModoFuncionarios() === WORKER_MODE_MANUAL) {
+    calcularOrcamento();
+    salvarRascunhoLocal();
+  }
 });
 
 [
   "cliente",
+  "documento",
+  "email",
+  "telefone",
   "obra",
-  "metragem",
+  "cepOrigem",
+  "enderecoOrigem",
+  "cep",
+  "endereco",
   "distancia",
   "consumo",
   "precoCombustivel",
@@ -505,7 +663,10 @@ $("metragem").addEventListener("input", () => {
   "propostaPrazo",
   "propostaObservacoes"
 ].forEach((id) => {
-  $(id).addEventListener("input", calcularOrcamento);
+  $(id).addEventListener("input", () => {
+    calcularOrcamento();
+    salvarRascunhoLocal();
+  });
 });
 
 ["perfilNomeVendedor", "perfilEmailVendedor", "perfilEmpresa", "perfilEndereco"].forEach((id) => {
@@ -530,10 +691,16 @@ $("perfilLogo").addEventListener("change", (event) => {
 
 $("btnSalvarPerfil").addEventListener("click", salvarPerfil);
 $("btnLimparPerfil").addEventListener("click", limparPerfil);
-$("btnCalcular").addEventListener("click", calcularOrcamento);
+$("btnCalcular").addEventListener("click", () => {
+  calcularOrcamento();
+  salvarRascunhoLocal();
+  showToast("Orçamento atualizado.");
+});
 $("btnLimpar").addEventListener("click", limparCampos);
 $("btnBuscarCep").addEventListener("click", async () => {
   await preencherEnderecosPorCep();
+  calcularOrcamento();
+  salvarRascunhoLocal();
 });
 $("btnSalvarProposta").addEventListener("click", salvarProposta);
 $("btnCarregarProposta").addEventListener("click", carregarPropostaSelecionada);
@@ -543,4 +710,6 @@ $("btnWhatsApp").addEventListener("click", gerarMensagemWhatsApp);
 ativarTabs();
 carregarPerfil();
 atualizarListaPropostas();
+atualizarModoFuncionarios({ preserveManualValue: false });
+carregarRascunhoLocal();
 calcularOrcamento();

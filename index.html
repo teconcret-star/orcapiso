@@ -169,7 +169,15 @@
 
           <div class="grid">
             <div class="field">
-              <label for="funcionarios">Funcionários necessários</label>
+              <label for="modoFuncionarios">Modo de cálculo da equipe</label>
+              <select id="modoFuncionarios" aria-describedby="infoFuncionarios">
+                <option value="auto">Automático</option>
+                <option value="manual">Manual</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="funcionarios">Funcionários considerados</label>
               <small id="infoFuncionarios" class="help-text">Regra automática: 1 funcionário a cada 100 m²</small>
               <input type="number" id="funcionarios" min="0" step="1" readonly aria-describedby="infoFuncionarios" />
             </div>
@@ -243,6 +251,8 @@
           <button id="btnLimpar" class="btn btn-secondary">Limpar campos</button>
         </section>
 
+        <p id="draftStatus" class="status-text">Os dados do orçamento ficam salvos automaticamente neste aparelho.</p>
+
         <section class="card resultado-card">
           <h2>Prévia da Proposta Comercial</h2>
 
@@ -300,7 +310,7 @@
               </div>
 
               <div class="resultado-item">
-                <span>Funcionários calculados</span>
+                <span>Funcionários considerados</span>
                 <strong id="resFuncionarios">0</strong>
               </div>
 
@@ -373,6 +383,8 @@
       </section>
     </main>
   </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script src="script.js"></script>
 </body>
