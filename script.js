@@ -265,10 +265,14 @@ function toTimestampMillis(value) {
   if (value?.toMillis) {
     return value.toMillis();
   }
-  return toNumber(value);
+  if (value == null || value === "") {
+    return null;
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
 }
 
-function getFirestoreServerTimestampValue() {
+function createFirestoreServerTimestamp() {
   return window.firebase?.firestore?.FieldValue?.serverTimestamp?.() || null;
 }
 
@@ -277,13 +281,13 @@ function normalizeDraftPayload(value) {
   const snapshot = value.snapshot && typeof value.snapshot === "object" && !Array.isArray(value.snapshot)
     ? value.snapshot
     : value;
-  const updatedAtClient = toTimestampMillis(value.updatedAtClient) || toTimestampMillis(value.updatedAt) || Date.now();
+  const updatedAtClient = toTimestampMillis(value.updatedAtClient) ?? toTimestampMillis(value.updatedAt) ?? Date.now();
   const updatedAtServer = toTimestampMillis(value.updatedAtServer);
   return {
     updatedAt: updatedAtClient,
     updatedAtClient,
     updatedAtServer,
-    pendingSync: Boolean(value.pendingSync) && !updatedAtServer,
+    pendingSync: updatedAtServer == null ? Boolean(value.pendingSync) : false,
     snapshot
   };
 }
@@ -475,7 +479,7 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
     scheduleFirebaseReconnect();
     return;
   }
-  const serverTimestamp = getFirestoreServerTimestampValue();
+  const serverTimestamp = createFirestoreServerTimestamp();
   if (!serverTimestamp) {
     scheduleFirebaseReconnect();
     return;
@@ -580,7 +584,7 @@ function subscribeFirestoreChanges() {
       if (!payload) return;
 
       const localPayload = readDraftPayloadFromStorage();
-      if (localPayload?.pendingSync && localPayload.updatedAtClient > payload.updatedAtClient) return;
+      if (localPayload?.pendingSync && localPayload.updatedAtClient != null && localPayload.updatedAtClient > payload.updatedAtClient) return;
 
       writeDraftPayloadToStorage(payload);
       if (!currentUserId) return;
