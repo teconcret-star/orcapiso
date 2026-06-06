@@ -68,10 +68,7 @@ const DEFAULT_MACHINE_DATABASE = {
   precoDisco: 220,
   consumoDuplaLitrosM2: 0.11,
   consumoSimplesLitrosM2: 0.08,
-  consumoCorteLitrosM2: 0.04,
-  percentualDupla: 50,
-  percentualSimples: 30,
-  percentualCorte: 20
+  consumoCorteLitrosM2: 0.04
 };
 /**
  * Preset de referência de mercado para parâmetros por m².
@@ -79,7 +76,6 @@ const DEFAULT_MACHINE_DATABASE = {
  * - rendimento* em m²/unidade
  * - preco* em R$
  * - consumo* em litros/m²
- * - percentual* em %
  */
 const MACHINE_DATABASE_PRESETS = {
   marketBestPractices: {
@@ -89,10 +85,7 @@ const MACHINE_DATABASE_PRESETS = {
     precoDisco: 235,
     consumoDuplaLitrosM2: 0.12,
     consumoSimplesLitrosM2: 0.085,
-    consumoCorteLitrosM2: 0.045,
-    percentualDupla: 50,
-    percentualSimples: 30,
-    percentualCorte: 20
+    consumoCorteLitrosM2: 0.045
   }
 };
 
@@ -689,16 +682,6 @@ function normalizeMachineDatabase(data = {}) {
   const consumoDuplaLitrosM2 = Math.max(0, toNumber(data.consumoDuplaLitrosM2));
   const consumoSimplesLitrosM2 = Math.max(0, toNumber(data.consumoSimplesLitrosM2));
   const consumoCorteLitrosM2 = Math.max(0, toNumber(data.consumoCorteLitrosM2));
-  const percentualDupla = Math.max(0, toNumber(data.percentualDupla));
-  const percentualSimples = Math.max(0, toNumber(data.percentualSimples));
-  const percentualCorte = Math.max(0, toNumber(data.percentualCorte));
-  const totalPercentuais = percentualDupla + percentualSimples + percentualCorte;
-
-  if (totalPercentuais <= 0) {
-    return { ...DEFAULT_MACHINE_DATABASE };
-  }
-
-  const fator = 100 / totalPercentuais;
   return {
     rendimentoFacasM2,
     precoFaca,
@@ -706,10 +689,7 @@ function normalizeMachineDatabase(data = {}) {
     precoDisco,
     consumoDuplaLitrosM2,
     consumoSimplesLitrosM2,
-    consumoCorteLitrosM2,
-    percentualDupla: percentualDupla * fator,
-    percentualSimples: percentualSimples * fator,
-    percentualCorte: percentualCorte * fator
+    consumoCorteLitrosM2
   };
 }
 
@@ -738,9 +718,6 @@ function applyMachineDatabaseValuesToForm(data) {
   $("paramConsumoMaquinaDupla").value = String(db.consumoDuplaLitrosM2);
   $("paramConsumoMaquinaSimples").value = String(db.consumoSimplesLitrosM2);
   $("paramConsumoMaquinaCorte").value = String(db.consumoCorteLitrosM2);
-  $("paramPercentualMaquinaDupla").value = db.percentualDupla.toFixed(2);
-  $("paramPercentualMaquinaSimples").value = db.percentualSimples.toFixed(2);
-  $("paramPercentualMaquinaCorte").value = db.percentualCorte.toFixed(2);
 }
 
 function aplicarEstimativaMercadoPreCadastrada() {
@@ -769,10 +746,7 @@ function readMachineDatabaseFromForm() {
     precoDisco: toNumber($("paramPrecoDisco").value),
     consumoDuplaLitrosM2: toNumber($("paramConsumoMaquinaDupla").value),
     consumoSimplesLitrosM2: toNumber($("paramConsumoMaquinaSimples").value),
-    consumoCorteLitrosM2: toNumber($("paramConsumoMaquinaCorte").value),
-    percentualDupla: toNumber($("paramPercentualMaquinaDupla").value),
-    percentualSimples: toNumber($("paramPercentualMaquinaSimples").value),
-    percentualCorte: toNumber($("paramPercentualMaquinaCorte").value)
+    consumoCorteLitrosM2: toNumber($("paramConsumoMaquinaCorte").value)
   };
 }
 
@@ -1767,11 +1741,11 @@ function calcularOrcamento() {
   const discosEstimados = metragem > 0 ? Math.ceil(metragem / machineDb.rendimentoDiscoM2) : 0;
   const custoFacas = facasEstimadas * machineDb.precoFaca;
   const custoDiscos = discosEstimados * machineDb.precoDisco;
-  const consumoPonderadoMaquinasPorM2 =
-    (machineDb.consumoDuplaLitrosM2 * machineDb.percentualDupla
-      + machineDb.consumoSimplesLitrosM2 * machineDb.percentualSimples
-      + machineDb.consumoCorteLitrosM2 * machineDb.percentualCorte) / 100;
-  const litrosCombustivelMaquinas = metragem * consumoPonderadoMaquinasPorM2;
+  const consumoTotalMaquinasPorM2 =
+    machineDb.consumoDuplaLitrosM2
+    + machineDb.consumoSimplesLitrosM2
+    + machineDb.consumoCorteLitrosM2;
+  const litrosCombustivelMaquinas = metragem * consumoTotalMaquinasPorM2;
   const custoCombustivelMaquinas = litrosCombustivelMaquinas * precoCombustivel;
   const subtotal =
     custoDeslocamento
