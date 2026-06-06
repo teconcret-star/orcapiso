@@ -141,8 +141,7 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&#39;")
-    .replaceAll("/", "&#x2F;");
+    .replaceAll("'", "&#39;");
 }
 
 function getFilterQuery(fieldId) {
@@ -450,22 +449,26 @@ function buildEquipamentosAlugadosOptions(selectedValue) {
 function createEquipamentoAlugadoItem(item = {}) {
   const tipo = sanitizeEquipamentoAlugadoTipo(item.tipo);
   const diaria = toNumber(item.diaria);
+  const idSuffix = createUniqueId().replaceAll("-", "");
+  const tipoId = `equipamentoAlugadoTipo_${idSuffix}`;
+  const diariaId = `equipamentoAlugadoDiaria_${idSuffix}`;
+  const totalId = `equipamentoAlugadoTotal_${idSuffix}`;
   const row = document.createElement("div");
   row.className = "equipamento-item";
   row.innerHTML = `
     <div class="field">
-      <label>Equipamento</label>
-      <select class="equipamento-alugado-tipo">
+      <label for="${tipoId}">Equipamento</label>
+      <select id="${tipoId}" class="equipamento-alugado-tipo">
         ${buildEquipamentosAlugadosOptions(tipo)}
       </select>
     </div>
     <div class="field">
-      <label>Valor da diária (R$)</label>
-      <input type="number" class="equipamento-alugado-diaria" min="0" step="0.01" placeholder="0.00" />
+      <label for="${diariaId}">Valor da diária (R$)</label>
+      <input id="${diariaId}" type="number" class="equipamento-alugado-diaria" min="0" step="0.01" placeholder="0.00" />
     </div>
     <div class="field">
-      <label>Total do item</label>
-      <input type="text" class="equipamento-alugado-total" value="${formatMoney(0)}" readonly />
+      <label for="${totalId}">Total do item</label>
+      <input id="${totalId}" type="text" class="equipamento-alugado-total" value="${formatMoney(0)}" readonly />
     </div>
     <button type="button" class="btn btn-danger btn-inline" data-action="remover-equipamento" aria-label="Remover item de equipamento alugado">Remover</button>
   `;
@@ -2157,7 +2160,9 @@ function bindStaticEvents() {
 
   $("btnAdicionarEquipamentoAlugado").addEventListener("click", () => {
     const list = $("equipamentosAlugadosList");
-    list.appendChild(createEquipamentoAlugadoItem());
+    const row = createEquipamentoAlugadoItem();
+    list.appendChild(row);
+    row.querySelector(".equipamento-alugado-tipo")?.focus();
     calcularOrcamento();
     salvarRascunhoLocal();
   });
