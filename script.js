@@ -14,6 +14,7 @@ const ROLE_SELLER = "seller";
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "password2026";
 const PASSWORD_ITERATIONS = 120000;
+const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
 const DEFAULT_MACHINE_DATABASE = {
@@ -58,7 +59,7 @@ let editingUserId = "";
 let currentUserId = "";
 let currentUser = null;
 let printProposalPendingCleanup = false;
-let printCleanupRetryTimeoutId = 0;
+let printCleanupRetryTimeoutId = null;
 
 function toNumber(value) {
   const number = parseFloat(value);
@@ -1445,9 +1446,9 @@ function salvarPropostaEmPdf() {
 }
 
 function limparEstadoImpressao() {
-  if (printCleanupRetryTimeoutId) {
+  if (printCleanupRetryTimeoutId !== null) {
     window.clearTimeout(printCleanupRetryTimeoutId);
-    printCleanupRetryTimeoutId = 0;
+    printCleanupRetryTimeoutId = null;
   }
   printProposalPendingCleanup = false;
   document.body.classList.remove("print-proposal");
@@ -1459,11 +1460,11 @@ function tentarLimparEstadoImpressao() {
     limparEstadoImpressao();
     return;
   }
-  if (printCleanupRetryTimeoutId) return;
+  if (printCleanupRetryTimeoutId !== null) return;
   printCleanupRetryTimeoutId = window.setTimeout(() => {
-    printCleanupRetryTimeoutId = 0;
+    printCleanupRetryTimeoutId = null;
     tentarLimparEstadoImpressao();
-  }, 400);
+  }, PRINT_CLEANUP_RETRY_DELAY_MS);
 }
 
 async function trocarMinhaSenha(event) {
