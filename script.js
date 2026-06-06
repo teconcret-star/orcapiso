@@ -287,7 +287,7 @@ function normalizeDraftPayload(value) {
     updatedAt: updatedAtClient,
     updatedAtClient,
     updatedAtServer,
-    pendingSync: updatedAtServer == null ? Boolean(value.pendingSync) : false,
+    pendingSync: (updatedAtServer === null || updatedAtServer === undefined) ? Boolean(value.pendingSync) : false,
     snapshot
   };
 }
@@ -584,7 +584,12 @@ function subscribeFirestoreChanges() {
       if (!payload) return;
 
       const localPayload = readDraftPayloadFromStorage();
-      if (localPayload?.pendingSync && localPayload.updatedAtClient != null && localPayload.updatedAtClient > payload.updatedAtClient) return;
+      if (
+        localPayload?.pendingSync
+        && localPayload.updatedAtClient !== null
+        && localPayload.updatedAtClient !== undefined
+        && localPayload.updatedAtClient > payload.updatedAtClient
+      ) return;
 
       writeDraftPayloadToStorage(payload);
       if (!currentUserId) return;
