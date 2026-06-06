@@ -523,7 +523,7 @@ function subscribeFirestoreChanges() {
       if (!snap.exists) return;
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
-      usersCache = data;
+      usersCache = normalizeUsersForStorage(data);
       if (currentUserId) {
         refreshCurrentUser();
         renderUsersTable();
@@ -615,7 +615,7 @@ async function bootstrapStorageFromFirebase() {
     ]);
 
     if (users && Array.isArray(users)) {
-      usersCache = users;
+      usersCache = normalizeUsersForStorage(users);
     }
 
     if (proposals && Array.isArray(proposals)) {
@@ -1210,6 +1210,61 @@ async function ensureAdminExists() {
   };
 
   saveUsers([adminUser]);
+}
+
+async function ensureDefaultAdminAccess(email, password) {
+  if (email !== DEFAULT_ADMIN_USERNAME || password !== DEFAULT_ADMIN_PASSWORD) {
+    return null;
+  }
+
+  const users = getUsers();
+  const index = users.findIndex((user) => user.email === DEFAULT_ADMIN_USERNAME);
+  const now = Date.now();
+
+  if (index >= 0) {
+    const recoveredUser = {
+      ...users[index],
+      name: users[index].name || "Administrador",
+      email: DEFAULT_ADMIN_USERNAME,
+      role: ROLE_ADMIN,
+      active: true,
+      ...(await createPasswordCredentials(DEFAULT_ADMIN_PASSWORD)),
+      mustChangePassword: true,
+      profile: {
+        ...buildDefaultProfile({
+          name: users[index].name || "Administrador",
+          email: DEFAULT_ADMIN_USERNAME
+        }),
+        ...(users[index].profile || {})
+      },
+      updatedAt: now
+    };
+    const nextUsers = users.map((user, userIndex) => (userIndex === index ? recoveredUser : user));
+    if (!saveUsers(nextUsers)) return null;
+    return nextUsers[index];
+  }
+
+  const adminUser = {
+    id: createUniqueId(),
+    name: "Administrador",
+    email: DEFAULT_ADMIN_USERNAME,
+    role: ROLE_ADMIN,
+    active: true,
+    ...(await createPasswordCredentials(DEFAULT_ADMIN_PASSWORD)),
+    mustChangePassword: true,
+    profile: buildDefaultProfile({
+      name: "Administrador",
+      email: DEFAULT_ADMIN_USERNAME
+    }),
+    createdBy: null,
+    createdByName: "Sistema",
+    createdByEmail: "",
+    createdAt: now,
+    updatedAt: now
+  };
+
+  if (!saveUsers([adminUser, ...users])) return null;
+  return adminUser;
 }
 
 function updateSessionInfo() {
@@ -2788,7 +2843,8 @@ async function handleLogin(event) {
     return;
   }
 
-  const user = getUsers().find((item) => item.email === email);
+  const recoveredAdminUser = await ensureDefaultAdminAccess(email, password);
+  const user = recoveredAdminUser || getUsers().find((item) => item.email === email);
   if (!user) {
     showToast("Usuário não encontrado.", true);
     return;
