@@ -10,6 +10,7 @@ const WORKER_MODE_AUTO = "auto";
 const WORKER_MODE_MANUAL = "manual";
 const ROLE_ADMIN = "admin";
 const ROLE_SELLER = "seller";
+const PASSWORD_ITERATIONS = 120000;
 const PRINT_CLASS_CLEANUP_DELAY_MS = 500;
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
@@ -109,6 +110,55 @@ async function hashPassword(password) {
   return Array.from(new Uint8Array(digest))
     .map((item) => item.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes)
+    .map((item) => item.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function hexToBytes(hex) {
+  const pairs = hex.match(/.{1,2}/g) || [];
+  return new Uint8Array(pairs.map((pair) => parseInt(pair, 16)));
+}
+
+function createPasswordSalt() {
+  return bytesToHex(window.crypto.getRandomValues(new Uint8Array(16)));
+}
+
+async function derivePasswordHash(password, saltHex, iterations = PASSWORD_ITERATIONS) {
+  const data = new TextEncoder().encode(password);
+  const key = await window.crypto.subtle.importKey("raw", data, "PBKDF2", false, ["deriveBits"]);
+  const derivedBits = await window.crypto.subtle.deriveBits({
+    name: "PBKDF2",
+    hash: "SHA-256",
+    salt: hexToBytes(saltHex),
+    iterations
+  }, key, 256);
+  return Array.from(new Uint8Array(derivedBits))
+    .map((item) => item.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function createPasswordCredentials(password) {
+  const passwordSalt = createPasswordSalt();
+  const passwordHash = await derivePasswordHash(password, passwordSalt);
+  return {
+    passwordHash,
+    passwordSalt,
+    passwordIterations: PASSWORD_ITERATIONS
+  };
+}
+
+async function verifyPassword(user, password) {
+  if (user.passwordSalt) {
+    const derivedHash = await derivePasswordHash(password, user.passwordSalt, user.passwordIterations || PASSWORD_ITERATIONS);
+    return derivedHash === user.passwordHash;
+  }
+
+  const legacyHash = await hashPassword(password);
+  return legacyHash === user.passwordHash;
 }
 
 function getTextoPadraoProposta() {
@@ -312,7 +362,8 @@ async function ensureAdminExists() {
     email: "admin@orcamento.local",
     role: ROLE_ADMIN,
     active: true,
-    passwordHash: await hashPassword("admin123"),
+    ...(await createPasswordCredentials("admin123")),
+    mustChangePassword: true,
     profile: buildDefaultProfile({
       name: "Administrador",
       email: "admin@orcamento.local"
@@ -329,12 +380,15 @@ function updateSessionInfo() {
     $("sessionUserName").textContent = "-";
     $("sessionUserMeta").textContent = "-";
     $("senhaUsuarioEmail").value = "";
+    $("securityNotice").hidden = true;
     return;
   }
 
   $("sessionUserName").textContent = currentUser.name;
   $("sessionUserMeta").textContent = `${formatRole(currentUser.role)} • ${currentUser.email} • ${currentUser.active ? "Ativo" : "Inativo"}`;
   $("senhaUsuarioEmail").value = currentUser.email || "";
+  $("securityNotice").hidden = !currentUser.mustChangePassword;
+  $("securityNotice").textContent = "Segurança: esta conta está com senha provisória. Troque sua senha para continuar usando o sistema com segurança.";
 }
 
 function updateTabVisibility() {
@@ -761,7 +815,9 @@ async function salvarUsuario(event) {
         showToast("A nova senha deve ter pelo menos 6 caracteres.", true);
         return;
       }
-      updatedUser.passwordHash = await hashPassword(formData.password.trim());
+      Object.assign(updatedUser, await createPasswordCredentials(formData.password.trim()), {
+        mustChangePassword: true
+      });
     }
 
     const nextUsers = users.map((user) => (user.id === editingUserId ? updatedUser : user));
@@ -778,7 +834,8 @@ async function salvarUsuario(event) {
       email: formData.email,
       role: formData.role,
       active: formData.active,
-      passwordHash: await hashPassword(formData.password.trim()),
+      ...(await createPasswordCredentials(formData.password.trim())),
+      mustChangePassword: true,
       profile: buildDefaultProfile({ name: formData.name, email: formData.email }),
       createdAt: now,
       updatedAt: now
@@ -1227,7 +1284,8 @@ async function trocarMinhaSenha(event) {
 
   users[index] = {
     ...users[index],
-    passwordHash: await hashPassword(novaSenha),
+    ...(await createPasswordCredentials(novaSenha)),
+    mustChangePassword: false,
     updatedAt: Date.now()
   };
 
@@ -1259,10 +1317,26 @@ async function handleLogin(event) {
     return;
   }
 
-  const passwordHash = await hashPassword(password);
-  if (passwordHash !== user.passwordHash) {
+  const passwordMatches = await verifyPassword(user, password);
+  if (!passwordMatches) {
     showToast("Senha inválida.", true);
     return;
+  }
+
+  if (!user.passwordSalt) {
+    const users = getUsers();
+    const index = users.findIndex((item) => item.id === user.id);
+    if (index >= 0) {
+      users[index] = {
+        ...users[index],
+        ...(await createPasswordCredentials(password)),
+        updatedAt: Date.now()
+      };
+      saveUsers(users);
+      user.passwordHash = users[index].passwordHash;
+      user.passwordSalt = users[index].passwordSalt;
+      user.passwordIterations = users[index].passwordIterations;
+    }
   }
 
   saveSession(user.id);
@@ -1272,6 +1346,11 @@ async function handleLogin(event) {
   logoDataUrl = currentUser.profile.logoDataUrl || "";
   atualizarInterfaceAutenticada();
   $("loginSenha").value = "";
+  if (currentUser.mustChangePassword) {
+    showToast("Esta conta está com senha provisória. Atualize sua senha em Meu Perfil.");
+    activateTab("tabPerfil");
+    return;
+  }
   showToast("Login realizado com sucesso.");
 }
 
