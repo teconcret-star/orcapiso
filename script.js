@@ -167,8 +167,13 @@ function getFirebaseRef(path) {
 async function readFirebasePath(path, fallback) {
   const ref = getFirebaseRef(path);
   if (!ref) return fallback;
-  const snapshot = await ref.once("value");
-  return snapshot.exists() ? snapshot.val() : fallback;
+  try {
+    const snapshot = await ref.once("value");
+    return snapshot.exists() ? snapshot.val() : fallback;
+  } catch (error) {
+    console.error(`Falha ao ler ${path}:`, error);
+    return fallback;
+  }
 }
 
 function queueFirebaseWrite(path, value) {
