@@ -3,251 +3,373 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Precificação de Piso Industrial</title>
+  <title>Proposta Comercial - Piso Industrial</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app">
     <header class="topo">
-      <h1>Precificação de Piso Industrial</h1>
-      <p>Orçamento por m² com deslocamento, combustível, pedágio e mão de obra</p>
+      <h1>Proposta Comercial de Piso Industrial</h1>
+      <p>Cadastre seu perfil, monte a proposta e envie direto pelo WhatsApp</p>
     </header>
 
     <main class="container">
-      <section class="card">
-        <h2>Dados do Cliente e da Obra</h2>
+      <nav class="tabs" aria-label="Navegação principal">
+        <button class="tab-btn active" data-tab="tabPerfil">Cadastro de Perfil</button>
+        <button class="tab-btn" data-tab="tabProposta">Proposta Comercial</button>
+      </nav>
 
-        <div class="grid">
-          <div class="field">
-            <label for="cliente">Nome do cliente</label>
-            <input type="text" id="cliente" placeholder="Ex.: Construtora Alfa" />
+      <section id="tabPerfil" class="tab-panel active">
+        <section class="card">
+          <h2>Dados do Vendedor e da Empresa</h2>
+          <div class="grid">
+            <div class="field">
+              <label for="perfilNomeVendedor">Nome do vendedor</label>
+              <input type="text" id="perfilNomeVendedor" placeholder="Ex.: João Silva" />
+            </div>
+
+            <div class="field">
+              <label for="perfilTelefoneVendedor">Telefone do vendedor</label>
+              <input type="text" id="perfilTelefoneVendedor" placeholder="Ex.: (11) 99999-9999" />
+            </div>
+
+            <div class="field">
+              <label for="perfilEmailVendedor">E-mail do vendedor</label>
+              <input type="email" id="perfilEmailVendedor" placeholder="Ex.: vendedor@empresa.com" />
+            </div>
+
+            <div class="field">
+              <label for="perfilEmpresa">Nome da empresa</label>
+              <input type="text" id="perfilEmpresa" placeholder="Ex.: TecConcret" />
+            </div>
+
+            <div class="field">
+              <label for="perfilCnpj">CNPJ da empresa</label>
+              <input type="text" id="perfilCnpj" placeholder="Ex.: 00.000.000/0001-00" />
+            </div>
+
+            <div class="field full">
+              <label for="perfilEndereco">Endereço da empresa</label>
+              <input type="text" id="perfilEndereco" placeholder="Ex.: Rua Exemplo, 100 - Centro - Cidade/UF" />
+            </div>
+
+            <div class="field full">
+              <label for="perfilLogo">Logo da empresa</label>
+              <input type="file" id="perfilLogo" accept="image/*" />
+              <small class="help-text">A logo será exibida no cabeçalho da proposta.</small>
+            </div>
           </div>
 
-          <div class="field">
-            <label for="documento">CPF ou CNPJ</label>
-            <input type="text" id="documento" placeholder="Ex.: 000.000.000-00" />
+          <div class="acoes">
+            <button id="btnSalvarPerfil" class="btn btn-primary">Salvar perfil</button>
+            <button id="btnLimparPerfil" class="btn btn-secondary">Limpar perfil</button>
           </div>
-
-          <div class="field">
-            <label for="email">E-mail</label>
-            <input type="email" id="email" placeholder="Ex.: contato@empresa.com" />
-          </div>
-
-          <div class="field">
-            <label for="telefone">Telefone</label>
-            <input type="text" id="telefone" placeholder="Ex.: (11) 99999-9999" />
-          </div>
-
-          <div class="field">
-            <label for="obra">Nome da obra</label>
-            <input type="text" id="obra" placeholder="Ex.: Galpão Industrial" />
-          </div>
-
-          <div class="field">
-            <label for="cepOrigem">CEP de origem (base)</label>
-            <input type="text" id="cepOrigem" placeholder="Ex.: 01001-000" />
-          </div>
-
-          <div class="field full">
-            <label for="enderecoOrigem">Endereço da unidade base</label>
-            <input type="text" id="enderecoOrigem" placeholder="Ex.: Rua Base, 100 - Cidade/UF" />
-          </div>
-
-          <div class="field">
-            <label for="cep">CEP da obra</label>
-            <input type="text" id="cep" placeholder="Ex.: 20040-030" />
-          </div>
-
-          <div class="field full">
-            <label for="endereco">Endereço da obra</label>
-            <input type="text" id="endereco" placeholder="Ex.: Rua Exemplo, 123 - Cidade/UF" />
-          </div>
-
-          <div class="field full">
-            <button id="btnBuscarCep" class="btn btn-secondary btn-inline">Buscar CEPs e preencher endereços</button>
-          </div>
-
-          <div class="field">
-            <label for="metragem">Metragem total (m²)</label>
-            <input type="number" id="metragem" min="0" step="0.01" placeholder="0,00" />
-          </div>
-
-          <div class="field">
-            <label for="distancia">Distância total (km)</label>
-            <input type="number" id="distancia" min="0" step="0.01" placeholder="0,00" />
-          </div>
-        </div>
+        </section>
       </section>
 
-      <section class="card">
-        <h2>Custos de Deslocamento</h2>
+      <section id="tabProposta" class="tab-panel">
+        <section class="card">
+          <h2>Dados do Cliente e da Obra</h2>
 
-        <div class="grid">
-          <div class="field">
-            <label for="consumo">Consumo do veículo (km/l)</label>
-            <input type="number" id="consumo" min="0" step="0.01" placeholder="0,00" />
+          <div class="grid">
+            <div class="field">
+              <label for="cliente">Nome do cliente</label>
+              <input type="text" id="cliente" placeholder="Ex.: Construtora Alfa" />
+            </div>
+
+            <div class="field">
+              <label for="documento">CPF ou CNPJ</label>
+              <input type="text" id="documento" placeholder="Ex.: 000.000.000-00" />
+            </div>
+
+            <div class="field">
+              <label for="email">E-mail</label>
+              <input type="email" id="email" placeholder="Ex.: contato@empresa.com" />
+            </div>
+
+            <div class="field">
+              <label for="telefone">Telefone</label>
+              <input type="text" id="telefone" placeholder="Ex.: (11) 99999-9999" />
+            </div>
+
+            <div class="field">
+              <label for="obra">Nome da obra</label>
+              <input type="text" id="obra" placeholder="Ex.: Galpão Industrial" />
+            </div>
+
+            <div class="field">
+              <label for="cepOrigem">CEP de origem (base)</label>
+              <input type="text" id="cepOrigem" placeholder="Ex.: 01001-000" />
+            </div>
+
+            <div class="field full">
+              <label for="enderecoOrigem">Endereço da unidade base</label>
+              <input type="text" id="enderecoOrigem" placeholder="Ex.: Rua Base, 100 - Cidade/UF" />
+            </div>
+
+            <div class="field">
+              <label for="cep">CEP da obra</label>
+              <input type="text" id="cep" placeholder="Ex.: 20040-030" />
+            </div>
+
+            <div class="field full">
+              <label for="endereco">Endereço da obra</label>
+              <input type="text" id="endereco" placeholder="Ex.: Rua Exemplo, 123 - Cidade/UF" />
+            </div>
+
+            <div class="field full">
+              <button id="btnBuscarCep" class="btn btn-secondary btn-inline">Buscar CEPs e preencher endereços</button>
+            </div>
+
+            <div class="field">
+              <label for="metragem">Metragem total (m²)</label>
+              <input type="number" id="metragem" min="0" step="0.01" placeholder="0,00" />
+            </div>
+
+            <div class="field">
+              <label for="distancia">Distância total (km)</label>
+              <input type="number" id="distancia" min="0" step="0.01" placeholder="0,00" />
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Custos de Deslocamento</h2>
+
+          <div class="grid">
+            <div class="field">
+              <label for="consumo">Consumo do veículo (km/l)</label>
+              <input type="number" id="consumo" min="0" step="0.01" placeholder="0,00" />
+            </div>
+
+            <div class="field">
+              <label for="precoCombustivel">Preço do combustível (R$/l)</label>
+              <input type="number" id="precoCombustivel" min="0" step="0.01" placeholder="0,00" />
+            </div>
+
+            <div class="field">
+              <label for="pedagio">Pedágio (R$)</label>
+              <input type="number" id="pedagio" min="0" step="0.01" placeholder="0,00" />
+            </div>
+
+            <div class="field">
+              <label for="consumoMaquinas">Consumo de combustível de máquinas (l)</label>
+              <input type="number" id="consumoMaquinas" min="0" step="0.01" placeholder="0,00" />
+            </div>
+
+            <div class="field">
+              <label for="viagens">Quantidade de viagens</label>
+              <input type="number" id="viagens" min="1" step="1" value="1" />
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Mão de Obra</h2>
+
+          <div class="grid">
+            <div class="field">
+              <label for="funcionarios">Funcionários necessários</label>
+              <small id="infoFuncionarios" class="help-text">Regra automática: 1 funcionário a cada 100 m²</small>
+              <input type="number" id="funcionarios" min="0" step="1" readonly aria-describedby="infoFuncionarios" />
+            </div>
+
+            <div class="field">
+              <label for="valorDia">Valor por funcionário/dia (R$)</label>
+              <input type="number" id="valorDia" min="0" step="0.01" placeholder="0,00" />
+            </div>
+
+            <div class="field">
+              <label for="dias">Quantidade de dias</label>
+              <input type="number" id="dias" min="0" step="1" placeholder="0" />
+            </div>
+
+            <div class="field">
+              <label for="encargos">Encargos adicionais (R$)</label>
+              <input type="number" id="encargos" min="0" step="0.01" placeholder="0,00" />
+            </div>
+
+            <div class="field">
+              <label for="alimentacaoFuncionario">Alimentação por funcionário/dia (R$)</label>
+              <input type="number" id="alimentacaoFuncionario" min="0" step="0.01" placeholder="0,00" />
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Outros Custos e Lucro</h2>
+
+          <div class="grid">
+            <div class="field">
+              <label for="outrosCustos">Outros custos (R$)</label>
+              <input type="number" id="outrosCustos" min="0" step="0.01" placeholder="0,00" />
+            </div>
+
+            <div class="field">
+              <label for="lucro">Margem de lucro (%)</label>
+              <input type="number" id="lucro" min="0" step="0.01" placeholder="0,00" />
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Detalhes Comerciais da Proposta</h2>
+          <div class="grid">
+            <div class="field">
+              <label for="propostaTitulo">Título da proposta</label>
+              <input type="text" id="propostaTitulo" placeholder="Ex.: Proposta de execução de piso industrial" />
+            </div>
+            <div class="field">
+              <label for="propostaValidade">Validade da proposta</label>
+              <input type="text" id="propostaValidade" placeholder="Ex.: 15 dias" />
+            </div>
+            <div class="field">
+              <label for="propostaPagamento">Condição de pagamento</label>
+              <input type="text" id="propostaPagamento" placeholder="Ex.: 40% entrada + 60% na conclusão" />
+            </div>
+            <div class="field">
+              <label for="propostaPrazo">Prazo de execução</label>
+              <input type="text" id="propostaPrazo" placeholder="Ex.: 7 dias úteis" />
+            </div>
+            <div class="field full">
+              <label for="propostaObservacoes">Observações</label>
+              <textarea id="propostaObservacoes" rows="4" placeholder="Ex.: Materiais e equipe inclusos conforme escopo descrito."></textarea>
+            </div>
+          </div>
+        </section>
+
+        <section class="acoes">
+          <button id="btnCalcular" class="btn btn-primary">Calcular orçamento</button>
+          <button id="btnLimpar" class="btn btn-secondary">Limpar campos</button>
+        </section>
+
+        <section class="card resultado-card">
+          <h2>Prévia da Proposta Comercial</h2>
+
+          <article class="proposta-preview">
+            <div class="proposta-cabecalho">
+              <img id="prevLogo" class="logo-proposta" alt="Logo da empresa" hidden />
+              <div>
+                <h3 id="prevEmpresa">Sua empresa</h3>
+                <p id="prevEmpresaCnpj">CNPJ: -</p>
+                <p id="prevEmpresaEndereco">Endereço: -</p>
+              </div>
+            </div>
+
+            <div class="resultado-topo">
+              <div>
+                <span class="label">Cliente</span>
+                <strong id="resCliente">-</strong>
+              </div>
+              <div>
+                <span class="label">Obra</span>
+                <strong id="resObra">-</strong>
+              </div>
+              <div>
+                <span class="label">Área</span>
+                <strong id="resArea">0,00 m²</strong>
+              </div>
+            </div>
+
+            <div class="proposta-meta">
+              <div><span class="label">Título</span><strong id="prevTitulo">-</strong></div>
+              <div><span class="label">Validade</span><strong id="prevValidade">-</strong></div>
+              <div><span class="label">Prazo</span><strong id="prevPrazo">-</strong></div>
+              <div><span class="label">Pagamento</span><strong id="prevPagamento">-</strong></div>
+            </div>
+
+            <div class="resultado-grid">
+              <div class="resultado-item">
+                <span>Custo com combustível</span>
+                <strong id="resCombustivel">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Custo com pedágio</span>
+                <strong id="resPedagio">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Custo com deslocamento</span>
+                <strong id="resDeslocamento">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Custo com mão de obra</span>
+                <strong id="resMaoDeObra">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Funcionários calculados</span>
+                <strong id="resFuncionarios">0</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Custo com alimentação</span>
+                <strong id="resAlimentacao">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Combustível de máquinas</span>
+                <strong id="resCombustivelMaquinas">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Encargos adicionais</span>
+                <strong id="resEncargos">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Outros custos</span>
+                <strong id="resOutros">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Subtotal</span>
+                <strong id="resSubtotal">R$ 0,00</strong>
+              </div>
+
+              <div class="resultado-item">
+                <span>Lucro</span>
+                <strong id="resLucro">R$ 0,00</strong>
+              </div>
+            </div>
+
+            <div class="total-box">
+              <div>
+                <span class="label">Valor total</span>
+                <strong id="resTotal">R$ 0,00</strong>
+              </div>
+              <div>
+                <span class="label">Preço por m²</span>
+                <strong id="resValorM2">R$ 0,00</strong>
+              </div>
+            </div>
+
+            <div class="proposta-rodape">
+              <p id="prevObservacoes">Observações: -</p>
+              <p><strong>Vendedor:</strong> <span id="prevVendedorNome">-</span> | <span id="prevVendedorContato">-</span> | <span id="prevVendedorEmail">-</span></p>
+            </div>
+          </article>
+
+          <div class="acoes acoes-wrap">
+            <button id="btnSalvarProposta" class="btn btn-primary">Salvar proposta</button>
+            <button id="btnWhatsApp" class="btn btn-secondary">Enviar no WhatsApp</button>
           </div>
 
-          <div class="field">
-            <label for="precoCombustivel">Preço do combustível (R$/l)</label>
-            <input type="number" id="precoCombustivel" min="0" step="0.01" placeholder="0,00" />
+          <div class="grid">
+            <div class="field">
+              <label for="propostasSalvas">Propostas salvas</label>
+              <select id="propostasSalvas">
+                <option value="">Selecione uma proposta salva</option>
+              </select>
+            </div>
+            <div class="field field-actions-inline">
+              <button id="btnCarregarProposta" class="btn btn-secondary">Carregar proposta</button>
+              <button id="btnExcluirProposta" class="btn btn-secondary">Excluir proposta</button>
+            </div>
           </div>
-
-          <div class="field">
-            <label for="pedagio">Pedágio (R$)</label>
-            <input type="number" id="pedagio" min="0" step="0.01" placeholder="0,00" />
-          </div>
-
-          <div class="field">
-            <label for="consumoMaquinas">Consumo de combustível de máquinas (l)</label>
-            <input type="number" id="consumoMaquinas" min="0" step="0.01" placeholder="0,00" />
-          </div>
-
-          <div class="field">
-            <label for="viagens">Quantidade de viagens</label>
-            <input type="number" id="viagens" min="1" step="1" value="1" />
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Mão de Obra</h2>
-
-        <div class="grid">
-          <div class="field">
-            <label for="funcionarios">Funcionários necessários</label>
-            <small id="infoFuncionarios" class="help-text">Regra automática: 1 funcionário a cada 100 m²</small>
-            <input type="number" id="funcionarios" min="0" step="1" readonly aria-describedby="infoFuncionarios" />
-          </div>
-
-          <div class="field">
-            <label for="valorDia">Valor por funcionário/dia (R$)</label>
-            <input type="number" id="valorDia" min="0" step="0.01" placeholder="0,00" />
-          </div>
-
-          <div class="field">
-            <label for="dias">Quantidade de dias</label>
-            <input type="number" id="dias" min="0" step="1" placeholder="0" />
-          </div>
-
-          <div class="field">
-            <label for="encargos">Encargos adicionais (R$)</label>
-            <input type="number" id="encargos" min="0" step="0.01" placeholder="0,00" />
-          </div>
-
-          <div class="field">
-            <label for="alimentacaoFuncionario">Alimentação por funcionário/dia (R$)</label>
-            <input type="number" id="alimentacaoFuncionario" min="0" step="0.01" placeholder="0,00" />
-          </div>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Outros Custos e Lucro</h2>
-
-        <div class="grid">
-          <div class="field">
-            <label for="outrosCustos">Outros custos (R$)</label>
-            <input type="number" id="outrosCustos" min="0" step="0.01" placeholder="0,00" />
-          </div>
-
-          <div class="field">
-            <label for="lucro">Margem de lucro (%)</label>
-            <input type="number" id="lucro" min="0" step="0.01" placeholder="0,00" />
-          </div>
-        </div>
-      </section>
-
-      <section class="acoes">
-        <button id="btnCalcular" class="btn btn-primary">Calcular orçamento</button>
-        <button id="btnLimpar" class="btn btn-secondary">Limpar campos</button>
-      </section>
-
-      <section class="card resultado-card">
-        <h2>Resultado do Orçamento</h2>
-
-        <div class="resultado-topo">
-          <div>
-            <span class="label">Cliente</span>
-            <strong id="resCliente">-</strong>
-          </div>
-          <div>
-            <span class="label">Obra</span>
-            <strong id="resObra">-</strong>
-          </div>
-          <div>
-            <span class="label">Área</span>
-            <strong id="resArea">0,00 m²</strong>
-          </div>
-        </div>
-
-        <div class="resultado-grid">
-          <div class="resultado-item">
-            <span>Custo com combustível</span>
-            <strong id="resCombustivel">R$ 0,00</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Custo com pedágio</span>
-            <strong id="resPedagio">R$ 0,00</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Custo com deslocamento</span>
-            <strong id="resDeslocamento">R$ 0,00</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Custo com mão de obra</span>
-            <strong id="resMaoDeObra">R$ 0,00</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Funcionários calculados</span>
-            <strong id="resFuncionarios">0</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Custo com alimentação</span>
-            <strong id="resAlimentacao">R$ 0,00</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Combustível de máquinas</span>
-            <strong id="resCombustivelMaquinas">R$ 0,00</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Encargos adicionais</span>
-            <strong id="resEncargos">R$ 0,00</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Outros custos</span>
-            <strong id="resOutros">R$ 0,00</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Subtotal</span>
-            <strong id="resSubtotal">R$ 0,00</strong>
-          </div>
-
-          <div class="resultado-item">
-            <span>Lucro</span>
-            <strong id="resLucro">R$ 0,00</strong>
-          </div>
-        </div>
-
-        <div class="total-box">
-          <div>
-            <span class="label">Valor total</span>
-            <strong id="resTotal">R$ 0,00</strong>
-          </div>
-          <div>
-            <span class="label">Preço por m²</span>
-            <strong id="resValorM2">R$ 0,00</strong>
-          </div>
-        </div>
+        </section>
       </section>
     </main>
   </div>
