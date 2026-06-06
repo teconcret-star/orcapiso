@@ -10,7 +10,7 @@ const WORKER_MODE_AUTO = "auto";
 const WORKER_MODE_MANUAL = "manual";
 const ROLE_ADMIN = "admin";
 const ROLE_SELLER = "seller";
-const DEFAULT_ADMIN_EMAIL = "admin";
+const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "password2026";
 const PASSWORD_ITERATIONS = 120000;
 const PRINT_CLASS_CLEANUP_DELAY_MS = 500;
@@ -361,14 +361,14 @@ async function ensureAdminExists() {
   const adminUser = {
     id: createUniqueId(),
     name: "Administrador",
-    email: DEFAULT_ADMIN_EMAIL,
+    email: DEFAULT_ADMIN_USERNAME,
     role: ROLE_ADMIN,
     active: true,
     ...(await createPasswordCredentials(DEFAULT_ADMIN_PASSWORD)),
     mustChangePassword: true,
     profile: buildDefaultProfile({
       name: "Administrador",
-      email: DEFAULT_ADMIN_EMAIL
+      email: DEFAULT_ADMIN_USERNAME
     }),
     createdAt: now,
     updatedAt: now
