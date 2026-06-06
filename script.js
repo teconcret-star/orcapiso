@@ -977,6 +977,10 @@ function normalizeUsersForStorage(list = []) {
       if (creatorUser) {
         nextUser.createdByName = creatorUser.name || "Administrador";
         nextUser.createdByEmail = creatorUser.email || "";
+      } else if (fallbackCreator && nextUser.id === fallbackCreator.id) {
+        nextUser.createdBy = null;
+        nextUser.createdByName = "Sistema";
+        nextUser.createdByEmail = "";
       } else if (fallbackCreator && nextUser.id !== fallbackCreator.id) {
         nextUser.createdBy = fallbackCreator.id;
         nextUser.createdByName = fallbackCreator.name || "Administrador";
@@ -1048,7 +1052,7 @@ async function ensureAdminExists() {
       name: "Administrador",
       email: DEFAULT_ADMIN_USERNAME
     }),
-    createdBy: "",
+    createdBy: null,
     createdByName: "Sistema",
     createdByEmail: "",
     createdAt: now,
