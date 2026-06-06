@@ -1670,6 +1670,11 @@ function renderUsersTable() {
 }
 
 function carregarUsuarioPorId(id) {
+  if (!isAdmin()) {
+    showToast("Somente administradores podem gerenciar usuários.", true);
+    return;
+  }
+
   const user = getUsers().find((item) => item.id === id);
   if (!user) return;
 
@@ -1691,6 +1696,11 @@ function countActiveAdmins(users) {
 
 async function salvarUsuario(event) {
   event?.preventDefault();
+  if (!isAdmin()) {
+    showToast("Somente administradores podem gerenciar usuários.", true);
+    return;
+  }
+
   const formData = getUserFormData();
   const users = getUsers();
 
@@ -1716,12 +1726,30 @@ async function salvarUsuario(event) {
   }
 
   const now = Date.now();
+  const creatingUser = !editingUserId;
+
+  if (creatingUser && formData.role === ROLE_ADMIN) {
+    showToast("Cadastre usuários somente como vendedor.", true);
+    return;
+  }
+
   const activeValue = formData.role === ROLE_ADMIN ? true : formData.active;
 
   if (editingUserId) {
     const index = users.findIndex((user) => user.id === editingUserId);
     if (index < 0) {
       showToast("Usuário não encontrado.", true);
+      return;
+    }
+
+    const currentRole = users[index].role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_SELLER;
+    if (currentRole === ROLE_ADMIN && formData.role !== ROLE_ADMIN) {
+      showToast("Administradores não podem ser convertidos para vendedor.", true);
+      return;
+    }
+
+    if (currentRole === ROLE_SELLER && formData.role === ROLE_ADMIN) {
+      showToast("Cadastre usuários somente como vendedor.", true);
       return;
     }
 
@@ -1783,6 +1811,11 @@ async function salvarUsuario(event) {
 }
 
 function alternarStatusUsuario(id) {
+  if (!isAdmin()) {
+    showToast("Somente administradores podem gerenciar usuários.", true);
+    return;
+  }
+
   const users = getUsers();
   const index = users.findIndex((user) => user.id === id);
   if (index < 0) return;
