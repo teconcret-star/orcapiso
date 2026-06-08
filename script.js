@@ -120,6 +120,7 @@ let chartValorPorVendedor = null;
 let chartParticipacaoVendedor = null;
 let chartPropostasPorStatus = null;
 let chartValorPorStatus = null;
+let pendingSyncCheckIntervalId = null;
 const runtimeStorage = new Map();
 
 function cloneStorageValue(value) {
@@ -277,18 +278,48 @@ function normalizeClientRecord(client = {}) {
 
 function readJsonStorage(key, fallback) {
   try {
-    if (!runtimeStorage.has(key)) return fallback;
-    const value = cloneStorageValue(runtimeStorage.get(key));
-    return value === undefined ? fallback : value;
+    // First try runtime storage (in-memory cache)
+    if (runtimeStorage.has(key)) {
+      const value = cloneStorageValue(runtimeStorage.get(key));
+      return value === undefined ? fallback : value;
+    }
+    
+    // Fallback to localStorage for persistence across page reloads
+    if (window.localStorage) {
+      const raw = window.localStorage.getItem(key);
+      if (raw) {
+        const value = JSON.parse(raw);
+        // Also cache in runtimeStorage for faster access
+        runtimeStorage.set(key, cloneStorageValue(value));
+        return value === undefined ? fallback : value;
+      }
+    }
+    
+    return fallback;
   } catch {
     runtimeStorage.delete(key);
+    // Also remove corrupted data from localStorage to prevent re-parsing on next read
+    if (window.localStorage) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // Ignore localStorage removal failures
+      }
+    }
     return fallback;
   }
 }
 
 function writeJsonStorage(key, value) {
   try {
-    runtimeStorage.set(key, cloneStorageValue(value));
+    const cloned = cloneStorageValue(value);
+    runtimeStorage.set(key, cloned);
+    
+    // Also persist to localStorage for durability across page reloads
+    if (window.localStorage) {
+      window.localStorage.setItem(key, JSON.stringify(cloned));
+    }
+    
     return true;
   } catch {
     showToast("Falha ao processar os dados em memória.", true);
@@ -298,6 +329,14 @@ function writeJsonStorage(key, value) {
 
 function removeStorageItem(key) {
   runtimeStorage.delete(key);
+  // Also remove from localStorage to keep in sync
+  if (window.localStorage) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore localStorage removal failures
+    }
+  }
 }
 
 function readLegacyJsonStorage(key, fallback) {
@@ -394,6 +433,28 @@ function clearFirebaseReconnectTimeout() {
   firebaseReconnectTimeoutId = null;
 }
 
+function startPendingSyncCheck() {
+  // Periodically check and sync pending draft data if Firebase is connected
+  if (pendingSyncCheckIntervalId) return;
+  
+  pendingSyncCheckIntervalId = window.setInterval(() => {
+    if (!currentUserId || !firebaseSyncEnabled || !firestoreDb) return;
+    
+    const draftPayload = readDraftPayloadFromStorage();
+    if (draftPayload?.pendingSync) {
+      console.log("Attempting to sync pending draft data...");
+      syncFirestoreDraftPayload(draftPayload);
+    }
+  }, 30000); // Check every 30 seconds to minimize battery impact on mobile devices
+}
+
+function stopPendingSyncCheck() {
+  if (pendingSyncCheckIntervalId) {
+    window.clearInterval(pendingSyncCheckIntervalId);
+    pendingSyncCheckIntervalId = null;
+  }
+}
+
 function refreshAppFromStorage() {
   refreshCurrentUser();
   renderUsersTable();
@@ -418,6 +479,7 @@ async function reconnectFirebase() {
       await bootstrapStorageFromFirebase();
       subscribeFirestoreChanges();
       if (currentUserId) {
+        startPendingSyncCheck();
         refreshAppFromStorage();
         await carregarRascunhoLocal();
       }
@@ -585,9 +647,18 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
     },
     updatedAtServer: serverTimestamp
   }).catch((error) => {
+    console.error(`Falha ao sincronizar ${docId}:`, error);
     handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
+    // Ensure the draft is marked as pending sync in local storage if sync fails
+    const payloadWithPending = {
+      ...normalized,
+      pendingSync: true,
+      updatedAtClient: normalized.updatedAtClient
+    };
+    writeDraftPayloadToStorage(payloadWithPending, userId);
   });
 }
+
 
 function clearFirestoreDraft(userId = currentUserId) {
   const docId = getDraftFirestoreDocId(userId);
@@ -2981,10 +3052,14 @@ function salvarRascunhoLocal() {
  const saved = writeDraftPayloadToStorage(payload);
  if (saved) {
    syncFirestoreDraftPayload(payload);
-   updateDraftStatus(`Rascunho salvo automaticamente às ${new Date().toLocaleTimeString("pt-BR", {
+   const time = new Date().toLocaleTimeString("pt-BR", {
      hour: "2-digit",
      minute: "2-digit"
-   })}${firebaseSyncEnabled ? " no Firestore." : " apenas em memória; pode ser perdido ao recarregar."}`);
+   });
+   const status = firebaseSyncEnabled 
+     ? `Rascunho salvo automaticamente às ${time} no Firestore.`
+     : `Rascunho salvo em memória às ${time} — será sincronizado quando a conexão for restaurada.`;
+   updateDraftStatus(status);
  }
 }
 
@@ -3415,6 +3490,7 @@ async function handleLogin(event) {
 }
 
 function handleLogout({ silent = false } = {}) {
+  stopPendingSyncCheck();
   clearSession();
   clearFirestoreListeners();
   currentUser = null;
@@ -3430,6 +3506,10 @@ function handleLogout({ silent = false } = {}) {
 }
 
 async function atualizarInterfaceAutenticada() {
+  // Subscribe to Firestore changes FIRST to ensure listeners are active before any field changes
+  subscribeFirestoreChanges();
+  startPendingSyncCheck();
+  
   refreshCurrentUser();
   updateAppVisibility();
   updateSessionInfo();
@@ -3448,7 +3528,6 @@ async function atualizarInterfaceAutenticada() {
   $("btnAbrirBancoDados").textContent = "Abrir banco de dados";
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
-  subscribeFirestoreChanges();
   await carregarRascunhoLocal();
   atualizarCampoPisoTela({ preserveValueWhenDisabled: true });
   atualizarCampoCuraQuimica({ preserveValueWhenDisabled: true });
