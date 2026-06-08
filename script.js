@@ -2933,7 +2933,7 @@ function salvarRascunhoLocal() {
    updateDraftStatus(`Rascunho salvo automaticamente às ${new Date().toLocaleTimeString("pt-BR", {
      hour: "2-digit",
      minute: "2-digit"
-   })}${firebaseSyncEnabled ? " no Firestore." : " apenas em memória; se a página for recarregada antes da reconexão, ele pode ser perdido."}`);
+   })}${firebaseSyncEnabled ? " no Firestore." : " apenas em memória; pode ser perdido ao recarregar."}`);
  }
 }
 
@@ -2963,7 +2963,7 @@ async function carregarRascunhoLocal() {
  if (!payload) {
    updateDraftStatus(firebaseSyncEnabled
      ? "Os dados do orçamento ficam salvos automaticamente no Firestore."
-     : "Aguardando conexão com o Firestore para sincronizar o rascunho entre dispositivos.");
+     : "Sem conexão — novos rascunhos ficam apenas em memória até reconectar ao Firestore.");
    return;
  }
 
