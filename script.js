@@ -298,6 +298,14 @@ function readJsonStorage(key, fallback) {
     return fallback;
   } catch {
     runtimeStorage.delete(key);
+    // Also remove corrupted data from localStorage to prevent re-parsing on next read
+    if (window.localStorage) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // Ignore localStorage removal failures
+      }
+    }
     return fallback;
   }
 }
@@ -434,6 +442,7 @@ function startPendingSyncCheck() {
     
     const draftPayload = readDraftPayloadFromStorage();
     if (draftPayload?.pendingSync) {
+      console.log("Attempting to sync pending draft data...");
       syncFirestoreDraftPayload(draftPayload);
     }
   }, 30000); // Check every 30 seconds to minimize battery impact on mobile devices
