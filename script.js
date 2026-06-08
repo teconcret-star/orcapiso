@@ -277,9 +277,24 @@ function normalizeClientRecord(client = {}) {
 
 function readJsonStorage(key, fallback) {
   try {
-    if (!runtimeStorage.has(key)) return fallback;
-    const value = cloneStorageValue(runtimeStorage.get(key));
-    return value === undefined ? fallback : value;
+    // First try runtime storage (in-memory cache)
+    if (runtimeStorage.has(key)) {
+      const value = cloneStorageValue(runtimeStorage.get(key));
+      return value === undefined ? fallback : value;
+    }
+    
+    // Fallback to localStorage for persistence across page reloads
+    if (window.localStorage) {
+      const raw = window.localStorage.getItem(key);
+      if (raw) {
+        const value = JSON.parse(raw);
+        // Also cache in runtimeStorage for faster access
+        runtimeStorage.set(key, cloneStorageValue(value));
+        return value === undefined ? fallback : value;
+      }
+    }
+    
+    return fallback;
   } catch {
     runtimeStorage.delete(key);
     return fallback;
@@ -288,7 +303,14 @@ function readJsonStorage(key, fallback) {
 
 function writeJsonStorage(key, value) {
   try {
-    runtimeStorage.set(key, cloneStorageValue(value));
+    const cloned = cloneStorageValue(value);
+    runtimeStorage.set(key, cloned);
+    
+    // Also persist to localStorage for durability across page reloads
+    if (window.localStorage) {
+      window.localStorage.setItem(key, JSON.stringify(cloned));
+    }
+    
     return true;
   } catch {
     showToast("Falha ao processar os dados em memória.", true);
@@ -298,6 +320,14 @@ function writeJsonStorage(key, value) {
 
 function removeStorageItem(key) {
   runtimeStorage.delete(key);
+  // Also remove from localStorage to keep in sync
+  if (window.localStorage) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore localStorage removal failures
+    }
+  }
 }
 
 function readLegacyJsonStorage(key, fallback) {
@@ -585,9 +615,18 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
     },
     updatedAtServer: serverTimestamp
   }).catch((error) => {
+    console.error(`Falha ao sincronizar ${docId}:`, error);
     handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
+    // Ensure the draft is marked as pending sync in local storage if sync fails
+    const payloadWithPending = {
+      ...normalized,
+      pendingSync: true,
+      updatedAtClient: normalized.updatedAtClient
+    };
+    writeDraftPayloadToStorage(payloadWithPending, userId);
   });
 }
+
 
 function clearFirestoreDraft(userId = currentUserId) {
   const docId = getDraftFirestoreDocId(userId);
@@ -3430,6 +3469,9 @@ function handleLogout({ silent = false } = {}) {
 }
 
 async function atualizarInterfaceAutenticada() {
+  // Subscribe to Firestore changes FIRST to ensure listeners are active before any field changes
+  subscribeFirestoreChanges();
+  
   refreshCurrentUser();
   updateAppVisibility();
   updateSessionInfo();
@@ -3448,7 +3490,6 @@ async function atualizarInterfaceAutenticada() {
   $("btnAbrirBancoDados").textContent = "Abrir banco de dados";
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
-  subscribeFirestoreChanges();
   await carregarRascunhoLocal();
   atualizarCampoPisoTela({ preserveValueWhenDisabled: true });
   atualizarCampoCuraQuimica({ preserveValueWhenDisabled: true });
