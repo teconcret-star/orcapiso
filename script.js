@@ -119,6 +119,19 @@ let chartValorPorVendedor = null;
 let chartParticipacaoVendedor = null;
 let chartPropostasPorStatus = null;
 let chartValorPorStatus = null;
+const runtimeStorage = new Map();
+
+function cloneStorageValue(value) {
+  if (value === undefined) return undefined;
+  if (typeof window.structuredClone === "function") {
+    try {
+      return window.structuredClone(value);
+    } catch {
+      // Fallback abaixo.
+    }
+  }
+  return JSON.parse(JSON.stringify(value));
+}
 
 function toNumber(value) {
   if (typeof value === "number") {
@@ -262,29 +275,54 @@ function normalizeClientRecord(client = {}) {
 }
 
 function readJsonStorage(key, fallback) {
-  const raw = localStorage.getItem(key);
-  if (!raw) return fallback;
-
   try {
-    return JSON.parse(raw);
+    if (!runtimeStorage.has(key)) return fallback;
+    const value = cloneStorageValue(runtimeStorage.get(key));
+    return value === undefined ? fallback : value;
   } catch {
-    localStorage.removeItem(key);
+    runtimeStorage.delete(key);
     return fallback;
   }
 }
 
 function writeJsonStorage(key, value) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    runtimeStorage.set(key, cloneStorageValue(value));
     return true;
   } catch {
-    showToast("Não foi possível salvar os dados neste aparelho.", true);
+    showToast("Falha ao processar os dados em memória.", true);
     return false;
   }
 }
 
 function removeStorageItem(key) {
-  localStorage.removeItem(key);
+  runtimeStorage.delete(key);
+}
+
+function readLegacyJsonStorage(key, fallback) {
+  try {
+    const raw = window.localStorage?.getItem?.(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    removeLegacyStorageItem(key);
+    return fallback;
+  }
+}
+
+function removeLegacyStorageItem(key) {
+  try {
+    window.localStorage?.removeItem?.(key);
+  } catch {
+    // Ignora falhas ao limpar legado.
+  }
+}
+
+function clearLegacyDraftStorage(userId = currentUserId) {
+  if (userId) {
+    removeLegacyStorageItem(getDraftStorageKey(userId));
+  }
+  removeLegacyStorageItem(LEGACY_DRAFT_STORAGE_KEY);
 }
 
 function getDraftFirestoreDocId(userId = currentUserId) {
@@ -337,11 +375,11 @@ function writeDraftPayloadToStorage(payload, userId = currentUserId) {
 function updateFirebaseStatus(connected) {
   const el = $("firebaseStatus");
   if (!el) return;
-  el.textContent = connected ? "☁ Firebase: conectado" : "⚠ Firebase: local";
+  el.textContent = connected ? "☁ Firebase: conectado" : "⚠ Firebase: desconectado";
   el.className = connected ? "firebase-status firebase-status-ok" : "firebase-status firebase-status-off";
   el.title = connected
     ? "Dados sincronizados com o servidor"
-    : "Sem conexão com o servidor — dados salvos apenas neste aparelho";
+    : "Sem conexão com o servidor — novas alterações ficam só em memória e podem ser perdidas ao recarregar a página";
 }
 
 function clearFirestoreListeners() {
@@ -534,6 +572,7 @@ function clearFirestoreDraft(userId = currentUserId) {
   const docId = getDraftFirestoreDocId(userId);
   if (!docId) return;
   removeStorageItem(getDraftStorageKey(userId));
+  clearLegacyDraftStorage(userId);
   const ref = getFirestoreDoc(docId);
   if (!ref) {
     scheduleFirebaseReconnect();
@@ -557,6 +596,7 @@ function subscribeFirestoreChanges() {
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
       usersCache = normalizeUsersForStorage(data);
+      removeLegacyStorageItem(USERS_STORAGE_KEY);
       if (currentUserId) {
         refreshCurrentUser();
         renderUsersTable();
@@ -576,6 +616,7 @@ function subscribeFirestoreChanges() {
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
       writeJsonStorage(PROPOSALS_STORAGE_KEY, data);
+      removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
       if (currentUserId) {
         renderizarTabelaPropostas();
         renderDashboard();
@@ -591,6 +632,7 @@ function subscribeFirestoreChanges() {
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
       writeJsonStorage(CLIENTS_STORAGE_KEY, data);
+      removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
       if (currentUserId) {
         renderClientsTable();
         populateProposalClientSelect();
@@ -605,7 +647,8 @@ function subscribeFirestoreChanges() {
       if (!snap.exists) return;
       const data = snap.data()?.data;
       if (!data || typeof data !== "object" || Array.isArray(data)) return;
-      writeJsonStorage(MACHINE_DB_STORAGE_KEY, data);
+      writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizeMachineDatabase(data));
+      removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
       if (currentUserId) {
         applyMachineDatabaseToForm();
       }
@@ -621,6 +664,7 @@ function subscribeFirestoreChanges() {
     col.doc(draftDocId).onSnapshot((snap) => {
       if (!snap.exists) {
         removeStorageItem(getDraftStorageKey());
+        clearLegacyDraftStorage();
         updateDraftStatus("Rascunho limpo.");
         return;
       }
@@ -642,6 +686,7 @@ function subscribeFirestoreChanges() {
       ) return;
 
       writeDraftPayloadToStorage(payload);
+      clearLegacyDraftStorage();
       if (!currentUserId) return;
 
       if (JSON.stringify(payload.snapshot) !== JSON.stringify(proposalFieldsSnapshot())) {
@@ -667,34 +712,56 @@ async function bootstrapStorageFromFirebase() {
 
     if (users && Array.isArray(users)) {
       usersCache = normalizeUsersForStorage(users);
+    } else {
+      const legacyUsers = readLegacyJsonStorage(USERS_STORAGE_KEY, null);
+      if (legacyUsers && Array.isArray(legacyUsers) && legacyUsers.length) {
+        usersCache = normalizeUsersForStorage(legacyUsers);
+        syncFirestoreDoc(FIRESTORE_USERS_DOC, usersCache);
+      } else {
+        usersCache = [];
+      }
     }
+    removeLegacyStorageItem(USERS_STORAGE_KEY);
 
     if (proposals && Array.isArray(proposals)) {
       writeJsonStorage(PROPOSALS_STORAGE_KEY, proposals);
     } else {
-      const localProposals = readJsonStorage(PROPOSALS_STORAGE_KEY, null);
-      if (localProposals && Array.isArray(localProposals) && localProposals.length) {
-        syncFirestoreDoc(FIRESTORE_PROPOSALS_DOC, localProposals);
+      const legacyProposals = readLegacyJsonStorage(PROPOSALS_STORAGE_KEY, null);
+      if (legacyProposals && Array.isArray(legacyProposals) && legacyProposals.length) {
+        writeJsonStorage(PROPOSALS_STORAGE_KEY, legacyProposals);
+        syncFirestoreDoc(FIRESTORE_PROPOSALS_DOC, legacyProposals);
+      } else {
+        writeJsonStorage(PROPOSALS_STORAGE_KEY, []);
       }
     }
+    removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
 
     if (clients && Array.isArray(clients)) {
       writeJsonStorage(CLIENTS_STORAGE_KEY, clients);
     } else {
-      const localClients = readJsonStorage(CLIENTS_STORAGE_KEY, null);
-      if (localClients && Array.isArray(localClients) && localClients.length) {
-        syncFirestoreDoc(FIRESTORE_CLIENTS_DOC, localClients);
+      const legacyClients = readLegacyJsonStorage(CLIENTS_STORAGE_KEY, null);
+      if (legacyClients && Array.isArray(legacyClients) && legacyClients.length) {
+        writeJsonStorage(CLIENTS_STORAGE_KEY, legacyClients);
+        syncFirestoreDoc(FIRESTORE_CLIENTS_DOC, legacyClients);
+      } else {
+        writeJsonStorage(CLIENTS_STORAGE_KEY, []);
       }
     }
+    removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
 
     if (machineDb && !Array.isArray(machineDb) && typeof machineDb === "object") {
-      writeJsonStorage(MACHINE_DB_STORAGE_KEY, machineDb);
+      writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizeMachineDatabase(machineDb));
     } else {
-      const localMachineDb = readJsonStorage(MACHINE_DB_STORAGE_KEY, null);
-      if (localMachineDb && !Array.isArray(localMachineDb) && typeof localMachineDb === "object") {
-        syncFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, localMachineDb);
+      const legacyMachineDb = readLegacyJsonStorage(MACHINE_DB_STORAGE_KEY, null);
+      if (legacyMachineDb && !Array.isArray(legacyMachineDb) && typeof legacyMachineDb === "object") {
+        const normalizedMachineDb = normalizeMachineDatabase(legacyMachineDb);
+        writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
+        syncFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, normalizedMachineDb);
+      } else {
+        writeJsonStorage(MACHINE_DB_STORAGE_KEY, DEFAULT_MACHINE_DATABASE);
       }
     }
+    removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
   } catch (error) {
     console.error("Falha ao carregar dados do Firebase:", error);
   }
@@ -1165,11 +1232,13 @@ function getSession() {
 }
 
 function saveSession(userId) {
+  removeLegacyStorageItem(SESSION_STORAGE_KEY);
   return writeJsonStorage(SESSION_STORAGE_KEY, { userId });
 }
 
 function clearSession() {
   removeStorageItem(SESSION_STORAGE_KEY);
+  removeLegacyStorageItem(SESSION_STORAGE_KEY);
 }
 
 function isAdmin(user = currentUser) {
@@ -2837,7 +2906,7 @@ function salvarBancoDadosEstimativas(event) {
   applyMachineDatabaseToForm();
   calcularOrcamento();
   salvarRascunhoLocal();
-  showToast("Banco de dados local atualizado.");
+  showToast("Banco de dados sincronizado com o Firestore.");
 }
 
 function restaurarBancoDadosEstimativas() {
@@ -2864,7 +2933,7 @@ function salvarRascunhoLocal() {
    updateDraftStatus(`Rascunho salvo automaticamente às ${new Date().toLocaleTimeString("pt-BR", {
      hour: "2-digit",
      minute: "2-digit"
-   })}${firebaseSyncEnabled ? " no Firestore." : " neste aparelho."}`);
+   })}${firebaseSyncEnabled ? " no Firestore." : " apenas em memória; pode ser perdido ao recarregar."}`);
  }
 }
 
@@ -2877,11 +2946,11 @@ async function carregarRascunhoLocal() {
  let localPayload = readDraftPayloadFromStorage();
 
  if (!localPayload) {
-   const legacySnapshot = readJsonStorage(LEGACY_DRAFT_STORAGE_KEY, null);
+   const legacySnapshot = readLegacyJsonStorage(LEGACY_DRAFT_STORAGE_KEY, null);
    if (legacySnapshot) {
      localPayload = normalizeDraftPayload(legacySnapshot);
      writeDraftPayloadToStorage(localPayload);
-     removeStorageItem(LEGACY_DRAFT_STORAGE_KEY);
+     removeLegacyStorageItem(LEGACY_DRAFT_STORAGE_KEY);
    }
  }
 
@@ -2894,7 +2963,7 @@ async function carregarRascunhoLocal() {
  if (!payload) {
    updateDraftStatus(firebaseSyncEnabled
      ? "Os dados do orçamento ficam salvos automaticamente no Firestore."
-     : "Os dados do orçamento ficam salvos localmente até o Firestore reconectar.");
+     : "Sem conexão — novos rascunhos ficam apenas em memória até reconectar ao Firestore.");
    return;
  }
 
@@ -2907,8 +2976,8 @@ async function carregarRascunhoLocal() {
  updateDraftStatus(payload === firestorePayload
    ? "Rascunho restaurado do Firestore."
    : shouldSyncLocalToFirestore
-     ? "Rascunho local restaurado e enviado para sincronização."
-     : "Rascunho local restaurado.");
+     ? "Rascunho legado restaurado e enviado ao Firestore."
+     : "Rascunho temporário restaurado.");
 }
 
 async function salvarProposta() {
