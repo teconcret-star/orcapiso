@@ -36,6 +36,7 @@ const FIRESTORE_SETTINGS = {
   experimentalAutoDetectLongPolling: true,
   useFetchStreams: false
 };
+const FIREBASE_INIT_CONNECTION_DELAY_MS = 1000;
 const FIREBASE_RECONNECT_DELAY_MS = 3000;
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const IFRAME_CLEANUP_DELAY_MS = 600;
@@ -412,6 +413,8 @@ async function reconnectFirebase() {
     const connected = initializeFirebaseConnection();
     if (!connected) return false;
     try {
+      // Allow Firestore client time to establish network connection before reading documents
+      await new Promise((resolve) => setTimeout(resolve, FIREBASE_INIT_CONNECTION_DELAY_MS));
       await bootstrapStorageFromFirebase();
       subscribeFirestoreChanges();
       if (currentUserId) {
@@ -3811,6 +3814,8 @@ function bindStaticEvents() {
 async function init() {
   bindStaticEvents();
   initializeFirebaseConnection();
+  // Allow Firestore client time to establish network connection before reading documents
+  await new Promise((resolve) => setTimeout(resolve, FIREBASE_INIT_CONNECTION_DELAY_MS));
   await bootstrapStorageFromFirebase();
   subscribeFirestoreChanges();
   await ensureAdminExists();
