@@ -787,7 +787,7 @@ async function bootstrapStorageFromFirebase() {
     removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
 
     // Initialize or restore machine database and ensure Firestore document exists
-    let normalizedMachineDb = DEFAULT_MACHINE_DATABASE;
+    let normalizedMachineDb;
     if (machineDb && !Array.isArray(machineDb) && typeof machineDb === "object") {
       normalizedMachineDb = normalizeMachineDatabase(machineDb);
       writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
@@ -797,7 +797,8 @@ async function bootstrapStorageFromFirebase() {
         normalizedMachineDb = normalizeMachineDatabase(legacyMachineDb);
         writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
       } else {
-        writeJsonStorage(MACHINE_DB_STORAGE_KEY, DEFAULT_MACHINE_DATABASE);
+        normalizedMachineDb = DEFAULT_MACHINE_DATABASE;
+        writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
       }
     }
     removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
