@@ -2539,7 +2539,7 @@ function populateProposalClientSelect() {
   const select = $("propostaClienteId");
   if (!select) return;
   const currentValue = select.value;
-  const clients = getVisibleClients().sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const clients = getVisibleClients().sort((a, b) => (a.name || "").localeCompare(b.name || "", "pt-BR"));
 
   select.innerHTML = "";
 
@@ -2547,7 +2547,7 @@ function populateProposalClientSelect() {
   placeholder.value = "";
   placeholder.textContent = clients.length
     ? "Selecione um cliente cadastrado"
-    : "Nenhum cliente cadastrado";
+    : "Nenhum cliente cadastrado.";
   select.appendChild(placeholder);
 
   clients.forEach((client) => {
@@ -2735,7 +2735,8 @@ async function salvarCliente(event) {
   if (!saveClients(clients)) return;
 
   const currentSelectedClientId = $("propostaClienteId").value;
-  const updatedClient = clients.find((client) => client.id === (editingClientId || clients[0]?.id));
+  const updatedClientId = editingClientId ? editingClientId : clients[0]?.id;
+  const updatedClient = clients.find((client) => client.id === updatedClientId);
 
   resetClientForm();
   renderClientsTable();
@@ -2934,7 +2935,7 @@ async function salvarProposta() {
   }
   const propostaAtualizada = {
     titulo: $("propostaTitulo").value.trim() || "Proposta sem título",
-    clientId: $("propostaClienteId").value || "",
+    clienteId: $("propostaClienteId").value || "",
     cliente: $("cliente").value.trim() || "Cliente não informado",
     data: formatDate(now),
     timestamp: now,
