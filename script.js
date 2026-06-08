@@ -290,7 +290,7 @@ function writeJsonStorage(key, value) {
     runtimeStorage.set(key, cloneStorageValue(value));
     return true;
   } catch {
-    showToast("Não foi possível manter os dados temporariamente em memória.", true);
+    showToast("Falha ao processar os dados em memória.", true);
     return false;
   }
 }
@@ -712,7 +712,6 @@ async function bootstrapStorageFromFirebase() {
 
     if (users && Array.isArray(users)) {
       usersCache = normalizeUsersForStorage(users);
-      removeLegacyStorageItem(USERS_STORAGE_KEY);
     } else {
       const legacyUsers = readLegacyJsonStorage(USERS_STORAGE_KEY, null);
       if (legacyUsers && Array.isArray(legacyUsers) && legacyUsers.length) {
@@ -721,12 +720,11 @@ async function bootstrapStorageFromFirebase() {
       } else {
         usersCache = [];
       }
-      removeLegacyStorageItem(USERS_STORAGE_KEY);
     }
+    removeLegacyStorageItem(USERS_STORAGE_KEY);
 
     if (proposals && Array.isArray(proposals)) {
       writeJsonStorage(PROPOSALS_STORAGE_KEY, proposals);
-      removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
     } else {
       const legacyProposals = readLegacyJsonStorage(PROPOSALS_STORAGE_KEY, null);
       if (legacyProposals && Array.isArray(legacyProposals) && legacyProposals.length) {
@@ -735,12 +733,11 @@ async function bootstrapStorageFromFirebase() {
       } else {
         writeJsonStorage(PROPOSALS_STORAGE_KEY, []);
       }
-      removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
     }
+    removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
 
     if (clients && Array.isArray(clients)) {
       writeJsonStorage(CLIENTS_STORAGE_KEY, clients);
-      removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
     } else {
       const legacyClients = readLegacyJsonStorage(CLIENTS_STORAGE_KEY, null);
       if (legacyClients && Array.isArray(legacyClients) && legacyClients.length) {
@@ -749,12 +746,11 @@ async function bootstrapStorageFromFirebase() {
       } else {
         writeJsonStorage(CLIENTS_STORAGE_KEY, []);
       }
-      removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
     }
+    removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
 
     if (machineDb && !Array.isArray(machineDb) && typeof machineDb === "object") {
       writeJsonStorage(MACHINE_DB_STORAGE_KEY, machineDb);
-      removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
     } else {
       const legacyMachineDb = readLegacyJsonStorage(MACHINE_DB_STORAGE_KEY, null);
       if (legacyMachineDb && !Array.isArray(legacyMachineDb) && typeof legacyMachineDb === "object") {
@@ -764,8 +760,8 @@ async function bootstrapStorageFromFirebase() {
       } else {
         writeJsonStorage(MACHINE_DB_STORAGE_KEY, DEFAULT_MACHINE_DATABASE);
       }
-      removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
     }
+    removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
   } catch (error) {
     console.error("Falha ao carregar dados do Firebase:", error);
   }
