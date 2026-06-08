@@ -436,7 +436,7 @@ function startPendingSyncCheck() {
     if (draftPayload?.pendingSync) {
       syncFirestoreDraftPayload(draftPayload);
     }
-  }, 10000); // Check every 10 seconds
+  }, 30000); // Check every 30 seconds to minimize battery impact on mobile devices
 }
 
 function stopPendingSyncCheck() {
