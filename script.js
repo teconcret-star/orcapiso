@@ -120,6 +120,7 @@ let chartValorPorVendedor = null;
 let chartParticipacaoVendedor = null;
 let chartPropostasPorStatus = null;
 let chartValorPorStatus = null;
+let pendingSyncCheckIntervalId = null;
 const runtimeStorage = new Map();
 
 function cloneStorageValue(value) {
@@ -424,6 +425,27 @@ function clearFirebaseReconnectTimeout() {
   firebaseReconnectTimeoutId = null;
 }
 
+function startPendingSyncCheck() {
+  // Periodically check and sync pending draft data if Firebase is connected
+  if (pendingSyncCheckIntervalId) return;
+  
+  pendingSyncCheckIntervalId = window.setInterval(() => {
+    if (!currentUserId || !firebaseSyncEnabled || !firestoreDb) return;
+    
+    const draftPayload = readDraftPayloadFromStorage();
+    if (draftPayload?.pendingSync) {
+      syncFirestoreDraftPayload(draftPayload);
+    }
+  }, 10000); // Check every 10 seconds
+}
+
+function stopPendingSyncCheck() {
+  if (pendingSyncCheckIntervalId) {
+    window.clearInterval(pendingSyncCheckIntervalId);
+    pendingSyncCheckIntervalId = null;
+  }
+}
+
 function refreshAppFromStorage() {
   refreshCurrentUser();
   renderUsersTable();
@@ -448,6 +470,7 @@ async function reconnectFirebase() {
       await bootstrapStorageFromFirebase();
       subscribeFirestoreChanges();
       if (currentUserId) {
+        startPendingSyncCheck();
         refreshAppFromStorage();
         await carregarRascunhoLocal();
       }
@@ -3458,6 +3481,7 @@ async function handleLogin(event) {
 }
 
 function handleLogout({ silent = false } = {}) {
+  stopPendingSyncCheck();
   clearSession();
   clearFirestoreListeners();
   currentUser = null;
@@ -3475,6 +3499,7 @@ function handleLogout({ silent = false } = {}) {
 async function atualizarInterfaceAutenticada() {
   // Subscribe to Firestore changes FIRST to ensure listeners are active before any field changes
   subscribeFirestoreChanges();
+  startPendingSyncCheck();
   
   refreshCurrentUser();
   updateAppVisibility();
