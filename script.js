@@ -70,7 +70,6 @@ const EQUIPAMENTOS_ALUGADOS_OPCOES = [
   { value: "nivel_laser", label: "Nível laser" },
   { value: "regua_vibratoria", label: "Régua vibratória" }
 ];
-const CLIENT_FIELDS = ["cliente", "documento", "email", "telefone", "obra", "cep", "endereco"];
 const DEFAULT_MACHINE_DATABASE = {
   rendimentoFacasM2: 300,
   precoFaca: 180,
@@ -238,7 +237,7 @@ function formatRole(role) {
 }
 
 function normalizeUserRole(role) {
-  return role === ROLE_ADMIN ? ROLE_ADMIN : ROLE_SELLER;
+  return role === ROLE_ADMIN ? role : ROLE_SELLER;
 }
 
 function normalizeClientRecord(client = {}) {
@@ -1183,10 +1182,6 @@ function isSeller(user = currentUser) {
 
 function podeGerenciarUsuarios(user = currentUser) {
   return isAdmin(user);
-}
-
-function filialParaRegistro() {
-  return DEFAULT_FILIAL;
 }
 
 function aplicarFiltroRole(lista) {
@@ -2553,7 +2548,8 @@ function populateProposalClientSelect() {
   clients.forEach((client) => {
     const option = document.createElement("option");
     option.value = client.id;
-    option.textContent = client.project ? `${client.name} - ${client.project}` : client.name;
+    const clientName = client.name || "Cliente sem nome";
+    option.textContent = client.project ? `${clientName} - ${client.project}` : clientName;
     select.appendChild(option);
   });
 
@@ -2741,7 +2737,7 @@ async function salvarCliente(event) {
   resetClientForm();
   renderClientsTable();
   populateProposalClientSelect();
-  if (updatedClient && (currentSelectedClientId === updatedClient.id || !currentSelectedClientId)) {
+  if (updatedClient && currentSelectedClientId === updatedClient.id) {
     applyClientToProposal(updatedClient);
     calcularOrcamento();
     salvarRascunhoLocal();
@@ -2946,7 +2942,7 @@ async function salvarProposta() {
     ownerId: existingProposal?.ownerId || currentUserId,
     ownerName: existingProposal?.ownerName || currentUser.name,
     ownerEmail: existingProposal?.ownerEmail || currentUser.email,
-    filial: existingProposal?.filial || filialParaRegistro(),
+    filial: existingProposal?.filial || DEFAULT_FILIAL,
     snapshot: proposalFieldsSnapshot()
   };
 
