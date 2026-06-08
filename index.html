@@ -64,6 +64,7 @@
 
         <nav class="tabs" aria-label="Navegação principal">
           <button class="tab-btn active" data-tab="tabPerfil">Meu Perfil</button>
+          <button class="tab-btn" data-tab="tabClientes">Clientes</button>
           <button class="tab-btn" data-tab="tabProposta">Proposta Comercial</button>
           <button class="tab-btn" data-tab="tabUsuarios" data-manager-only="true">Usuários</button>
           <button class="tab-btn" data-tab="tabDashboard" data-manager-only="true">Dashboard</button>
@@ -148,6 +149,18 @@
             <h2>Dados do cliente e da obra</h2>
 
             <div class="grid">
+              <div class="field full">
+                <label for="propostaClienteId">Cliente cadastrado</label>
+                <select id="propostaClienteId">
+                  <option value="">Selecione um cliente cadastrado</option>
+                </select>
+                <small class="help-text">Ao selecionar um cliente, os dados abaixo serão preenchidos automaticamente.</small>
+              </div>
+
+              <div class="field full">
+                <button id="btnIrParaClientes" type="button" class="btn btn-secondary btn-inline">Ir para cadastro de clientes</button>
+              </div>
+
               <div class="field">
                 <label for="cliente">Nome do cliente</label>
                 <input type="text" id="cliente" placeholder="Ex.: Construtora Alfa" />
@@ -712,6 +725,87 @@
           </section>
         </section>
 
+        <section id="tabClientes" class="tab-panel">
+          <section class="card">
+            <h2>Cadastro de clientes</h2>
+            <form id="clientForm">
+              <div class="grid">
+                <div class="field">
+                  <label for="clientNome">Nome do cliente</label>
+                  <input type="text" id="clientNome" placeholder="Ex.: Construtora Alfa" />
+                </div>
+
+                <div class="field">
+                  <label for="clientDocumento">CPF ou CNPJ</label>
+                  <input type="text" id="clientDocumento" placeholder="Ex.: 00.000.000/0001-00" />
+                </div>
+
+                <div class="field">
+                  <label for="clientEmail">E-mail</label>
+                  <input type="email" id="clientEmail" placeholder="Ex.: contato@empresa.com" />
+                </div>
+
+                <div class="field">
+                  <label for="clientTelefone">Telefone</label>
+                  <input type="text" id="clientTelefone" placeholder="Ex.: (11) 99999-9999" />
+                </div>
+
+                <div class="field">
+                  <label for="clientObra">Nome da obra</label>
+                  <input type="text" id="clientObra" placeholder="Ex.: Galpão Industrial" />
+                </div>
+
+                <div class="field">
+                  <label for="clientCep">CEP da obra</label>
+                  <input type="text" id="clientCep" placeholder="Ex.: 20040-030" />
+                </div>
+
+                <div class="field full">
+                  <label for="clientEndereco">Endereço da obra</label>
+                  <input type="text" id="clientEndereco" placeholder="Ex.: Rua Exemplo, 123 - Cidade/UF" />
+                </div>
+
+                <div class="field full">
+                  <button id="btnBuscarCepCliente" type="button" class="btn btn-secondary btn-inline">Buscar CEP da obra</button>
+                </div>
+              </div>
+
+              <div class="acoes">
+                <button id="btnSalvarCliente" type="submit" class="btn btn-primary">Salvar cliente</button>
+                <button id="btnLimparCliente" type="button" class="btn btn-secondary">Limpar formulário</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2 id="clientesTituloSecao">Meus clientes cadastrados</h2>
+            <div class="table-wrap table-scroll">
+              <div class="field">
+                <label for="filtroTabelaClientes">Filtrar clientes</label>
+                <input type="text" id="filtroTabelaClientes" placeholder="Digite nome, documento, obra ou vendedor" />
+              </div>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Documento</th>
+                    <th>Telefone</th>
+                    <th>Obra</th>
+                    <th>Endereço</th>
+                    <th id="colunaClienteVendedor" hidden>Vendedor</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="tabelaClientesBody">
+                  <tr>
+                    <td colspan="7">Nenhum cliente cadastrado.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
         <section id="tabUsuarios" class="tab-panel">
           <section class="card">
             <h2>Cadastro de usuários</h2>
@@ -729,16 +823,13 @@
                   <label for="usuarioTipo">Tipo de usuário</label>
                   <select id="usuarioTipo">
                     <option value="seller">Vendedor</option>
-                    <option value="gerente">Gerente</option>
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
                 <div class="field">
                   <label for="usuarioFilial">Filial</label>
                   <select id="usuarioFilial">
-                    <option value="Divinopolis">Divinopolis</option>
-                    <option value="Uberlandia">Uberlandia</option>
-                    <option value="Manhuaçu">Manhuaçu</option>
+                    <option value="Matriz">Matriz</option>
                   </select>
                 </div>
                 <div class="field">
