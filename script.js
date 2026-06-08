@@ -10,7 +10,9 @@ const DRAFT_STORAGE_KEY_PREFIX = "proposta_rascunho_usuario_v1_";
 const WORKER_MODE_AUTO = "auto";
 const WORKER_MODE_MANUAL = "manual";
 const ROLE_ADMIN = "admin";
+const ROLE_GERENTE = "gerente";
 const ROLE_SELLER = "seller";
+const ROLE_FILIAIS = ["Divinopolis", "Uberlandia", "Manhuaçu"];
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "password2026";
 const PASSWORD_ITERATIONS = 120000;
@@ -228,7 +230,9 @@ function matchesFilter(values, query) {
 }
 
 function formatRole(role) {
-  return role === ROLE_ADMIN ? "Administrador" : "Vendedor";
+  if (role === ROLE_ADMIN) return "Administrador";
+  if (role === ROLE_GERENTE) return "Gerente";
+  return "Vendedor";
 }
 
 function readJsonStorage(key, fallback) {
@@ -393,9 +397,17 @@ function getUserCreatorName(user = {}) {
 }
 
 function canDeleteUser(user, actor = currentUser) {
-  if (!isAdmin(actor) || !user) return false;
+  if (!podeGerenciarUsuarios(actor) || !user) return false;
   if (user.id === actor.id) return false;
-  return user.createdBy === actor.id;
+  // Admin can only delete users they created
+  if (isAdmin(actor)) return user.createdBy === actor.id;
+  // Gerente can only delete sellers they created within their filial
+  if (isGerente(actor)) {
+    return user.role === ROLE_SELLER
+      && user.createdBy === actor.id
+      && (!user.filial || user.filial === actor.filial);
+  }
+  return false;
 }
 
 function initializeFirebaseConnection() {
@@ -1101,9 +1113,33 @@ function isAdmin(user = currentUser) {
   return user?.role === ROLE_ADMIN;
 }
 
+function isGerente(user = currentUser) {
+  return user?.role === ROLE_GERENTE;
+}
+
+function isSeller(user = currentUser) {
+  return user?.role === ROLE_SELLER;
+}
+
+function podeGerenciarUsuarios(user = currentUser) {
+  return isAdmin(user) || isGerente(user);
+}
+
+function filialParaRegistro() {
+  return currentUser?.filial || ROLE_FILIAIS[0];
+}
+
+function aplicarFiltroRole(lista) {
+  if (!currentUser || isAdmin()) return lista;
+  if (isGerente()) {
+    return lista.filter((r) => !r.filial || r.filial === currentUser.filial);
+  }
+  return lista.filter((r) => r.ownerId === currentUserId);
+}
+
 function requireAdminForUserManagement() {
-  if (isAdmin()) return true;
-  showToast("Somente administradores podem gerenciar usuários.", true);
+  if (podeGerenciarUsuarios()) return true;
+  showToast("Somente administradores e gerentes podem gerenciar usuários.", true);
   return false;
 }
 
@@ -1277,7 +1313,8 @@ function updateSessionInfo() {
   }
 
   $("sessionUserName").textContent = currentUser.name;
-  $("sessionUserMeta").textContent = `${formatRole(currentUser.role)} • ${currentUser.email} • ${currentUser.active ? "Ativo" : "Inativo"}`;
+  const filialInfo = currentUser.filial ? ` • ${currentUser.filial}` : "";
+  $("sessionUserMeta").textContent = `${formatRole(currentUser.role)}${filialInfo} • ${currentUser.email} • ${currentUser.active ? "Ativo" : "Inativo"}`;
   $("senhaUsuarioEmail").value = currentUser.email || "";
   $("securityNotice").hidden = !currentUser.mustChangePassword;
   $("securityNotice").textContent = "Para sua segurança, altere sua senha provisória em Meu Perfil.";
@@ -1285,9 +1322,15 @@ function updateSessionInfo() {
 
 function updateTabVisibility() {
   const admin = isAdmin();
+  const manager = podeGerenciarUsuarios();
   const adminOnlyButtons = document.querySelectorAll(".tab-btn[data-admin-only='true']");
   adminOnlyButtons.forEach((button) => {
     button.hidden = !admin;
+  });
+
+  const managerButtons = document.querySelectorAll(".tab-btn[data-manager-only='true']");
+  managerButtons.forEach((button) => {
+    button.hidden = !manager;
   });
 
   document.querySelectorAll("[data-admin-only-block='true']").forEach((block) => {
@@ -1389,6 +1432,9 @@ function loadCurrentUserProfile() {
 function getVisibleProposals() {
   const allProposals = getSavedProposals();
   if (isAdmin()) return allProposals;
+  if (isGerente()) {
+    return allProposals.filter((item) => !item.filial || item.filial === currentUser.filial);
+  }
   return allProposals.filter((item) => item.ownerId === currentUserId);
 }
 
@@ -1478,11 +1524,11 @@ function atualizarCampoStatusProposta({ preserveValueWhenHidden = true } = {}) {
 function renderizarTabelaPropostas() {
   const tbody = $("tabelaPropostasBody");
   const list = getVisibleProposals();
-  const showOwner = isAdmin();
+  const showOwner = isAdmin() || isGerente();
   const query = getFilterQuery("filtroTabelaPropostas");
   const filteredList = list.filter((item) => {
     const statusMeta = getProposalStatusMeta(item.status || item.snapshot?.propostaStatus);
-    const rowData = [item.titulo, item.cliente, item.data, statusMeta.label, item.ownerName, item.ownerEmail];
+    const rowData = [item.titulo, item.cliente, item.data, statusMeta.label, item.ownerName, item.ownerEmail, item.filial];
     return matchesFilter(rowData, query);
   });
 
@@ -1550,11 +1596,17 @@ function renderizarTabelaPropostas() {
 }
 
 function renderDashboard() {
-  if (!isAdmin()) return;
+  if (!podeGerenciarUsuarios()) return;
 
-  const users = getUsers().map(mergeUserProfile);
+  const allUsers = getUsers().map(mergeUserProfile);
+  const users = isGerente()
+    ? allUsers.filter((u) => !u.filial || u.filial === currentUser.filial)
+    : allUsers;
   const sellers = users.filter((user) => user.role === ROLE_SELLER);
-  const proposals = getSavedProposals();
+  const allProposals = getSavedProposals();
+  const proposals = isGerente()
+    ? allProposals.filter((p) => !p.filial || p.filial === currentUser.filial)
+    : allProposals;
   const sellersByEmail = new Map(
     sellers
       .map((seller) => [normalizeEmail(seller.email), seller.id])
@@ -1835,10 +1887,13 @@ function renderDashboardCharts(labels, propostas, valores, statusSummary = {}) {
 }
 
 function getUserFormData() {
+  const roleValue = $("usuarioTipo").value;
+  const role = roleValue === ROLE_ADMIN ? ROLE_ADMIN : roleValue === ROLE_GERENTE ? ROLE_GERENTE : ROLE_SELLER;
   return {
     name: $("usuarioNome").value.trim(),
     email: normalizeEmail($("usuarioEmail").value),
-    role: $("usuarioTipo").value === ROLE_ADMIN ? ROLE_ADMIN : ROLE_SELLER,
+    role,
+    filial: $("usuarioFilial")?.value || ROLE_FILIAIS[0],
     active: $("usuarioAtivo").checked,
     password: $("usuarioSenha").value
   };
@@ -1850,6 +1905,7 @@ function atualizarCampoAtivoUsuarioPorTipo() {
   if (isAdminType) {
     $("usuarioAtivo").checked = true;
   }
+  // Gerentes can be active or inactive — no special handling needed
 }
 
 function resetUserForm() {
@@ -1857,6 +1913,10 @@ function resetUserForm() {
   $("usuarioNome").value = "";
   $("usuarioEmail").value = "";
   $("usuarioTipo").value = ROLE_SELLER;
+  if ($("usuarioFilial")) {
+    $("usuarioFilial").value = isGerente() ? currentUser.filial : ROLE_FILIAIS[0];
+    $("usuarioFilial").disabled = isGerente();
+  }
   $("usuarioSenha").value = "";
   $("usuarioAtivo").checked = true;
   $("usuarioAtivo").disabled = false;
@@ -1864,17 +1924,25 @@ function resetUserForm() {
 }
 
 function renderUsersTable() {
-  if (!isAdmin()) return;
+  if (!podeGerenciarUsuarios()) return;
 
   const tbody = $("tabelaUsuariosBody");
-  const users = getUsers();
+  let users = getUsers();
+
+  // Gerente only sees users of their filial; admin sees all
+  if (isGerente()) {
+    users = users.filter((u) => u.role !== ROLE_ADMIN && (!u.filial || u.filial === currentUser.filial));
+  }
+
   const query = getFilterQuery("filtroTabelaUsuarios");
   tbody.innerHTML = "";
+
+  const colCount = 7;
 
   if (!users.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 6;
+    cell.colSpan = colCount;
     cell.textContent = "Nenhum usuário cadastrado.";
     row.appendChild(cell);
     tbody.appendChild(row);
@@ -1888,6 +1956,7 @@ function renderUsersTable() {
       user.name || "-",
       user.email || "-",
       formatRole(user.role),
+      user.filial || "-",
       user.active ? "Ativo" : "Inativo",
       getUserCreatorName(user)
     ];
@@ -1921,11 +1990,11 @@ function renderUsersTable() {
     btnExcluir.textContent = "Excluir";
     btnExcluir.disabled = !canDeleteUser(user);
     if (btnExcluir.disabled) {
-      btnExcluir.title = !isAdmin()
-        ? "Somente administradores podem excluir usuários."
+      btnExcluir.title = !podeGerenciarUsuarios()
+        ? "Somente administradores e gerentes podem excluir usuários."
         : user.id === currentUserId
           ? "Você não pode excluir o próprio usuário."
-          : "Somente o administrador que cadastrou este usuário pode excluí-lo.";
+          : "Somente quem cadastrou este usuário pode excluí-lo.";
     }
 
     actions.append(btnEditar, btnAlternar, btnExcluir);
@@ -1943,7 +2012,7 @@ function renderUsersTable() {
   if (!fragment.childNodes.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 6;
+    cell.colSpan = colCount;
     cell.textContent = "Nenhum usuário encontrado para o filtro informado.";
     row.appendChild(cell);
     tbody.appendChild(row);
@@ -1963,6 +2032,10 @@ function carregarUsuarioPorId(id) {
   $("usuarioNome").value = user.name || "";
   $("usuarioEmail").value = user.email || "";
   $("usuarioTipo").value = user.role || ROLE_SELLER;
+  if ($("usuarioFilial")) {
+    $("usuarioFilial").value = user.filial || ROLE_FILIAIS[0];
+    $("usuarioFilial").disabled = isGerente();
+  }
   $("usuarioAtivo").checked = Boolean(user.active);
   $("usuarioSenha").value = "";
   atualizarCampoAtivoUsuarioPorTipo();
@@ -2003,6 +2076,18 @@ async function salvarUsuario(event) {
     return;
   }
 
+  // Gerente can only create/edit sellers in their own filial
+  if (isGerente() && !isAdmin()) {
+    if (formData.role !== ROLE_SELLER) {
+      showToast("Gerentes só podem cadastrar vendedores.", true);
+      return;
+    }
+    if (formData.filial !== currentUser.filial) {
+      showToast("Gerentes só podem cadastrar usuários para sua própria filial.", true);
+      return;
+    }
+  }
+
   const now = Date.now();
   const creatingUser = !editingUserId;
 
@@ -2017,12 +2102,12 @@ async function salvarUsuario(event) {
 
     const currentRole = users[index].role;
     if (currentRole === ROLE_ADMIN && formData.role !== ROLE_ADMIN) {
-      showToast("Administradores não podem ser convertidos para vendedor.", true);
+      showToast("Administradores não podem ter o tipo alterado.", true);
       return;
     }
 
-    if (currentRole === ROLE_SELLER && formData.role === ROLE_ADMIN) {
-      showToast("Não é permitido promover vendedores para administrador.", true);
+    if (currentRole !== ROLE_ADMIN && formData.role === ROLE_ADMIN) {
+      showToast("Não é permitido promover usuários para administrador.", true);
       return;
     }
 
@@ -2031,6 +2116,7 @@ async function salvarUsuario(event) {
       name: formData.name,
       email: formData.email,
       role: formData.role,
+      filial: formData.filial || users[index].filial || ROLE_FILIAIS[0],
       active: activeValue,
       updatedAt: now,
       profile: {
@@ -2064,6 +2150,7 @@ async function salvarUsuario(event) {
       name: formData.name,
       email: formData.email,
       role: formData.role,
+      filial: formData.filial || ROLE_FILIAIS[0],
       active: activeValue,
       ...(await createPasswordCredentials(formData.password.trim())),
       mustChangePassword: true,
@@ -2099,6 +2186,14 @@ function alternarStatusUsuario(id) {
     return;
   }
 
+  // Gerente can only toggle users in their filial
+  if (isGerente() && !isAdmin()) {
+    if (targetUser.filial && targetUser.filial !== currentUser.filial) {
+      showToast("Você não pode alterar usuários de outra filial.", true);
+      return;
+    }
+  }
+
   const nextUsers = users.map((user) => user.id === id ? { ...user, active: !user.active, updatedAt: Date.now() } : user);
   if (!countActiveAdmins(nextUsers)) {
     showToast("Mantenha ao menos um administrador ativo.", true);
@@ -2127,7 +2222,7 @@ function excluirUsuarioPorId(id) {
   }
 
   if (!canDeleteUser(targetUser)) {
-    showToast("Somente o administrador que cadastrou este usuário pode excluí-lo.", true);
+    showToast("Somente quem cadastrou este usuário pode excluí-lo.", true);
     return;
   }
 
@@ -2541,6 +2636,7 @@ async function salvarProposta() {
     ownerId: existingProposal?.ownerId || currentUserId,
     ownerName: existingProposal?.ownerName || currentUser.name,
     ownerEmail: existingProposal?.ownerEmail || currentUser.email,
+    filial: existingProposal?.filial || filialParaRegistro(),
     snapshot: proposalFieldsSnapshot()
   };
 
@@ -2553,8 +2649,12 @@ async function salvarProposta() {
       return;
     }
 
-    if (!isAdmin() && list[index].ownerId !== currentUserId) {
+    if (!isAdmin() && !isGerente() && list[index].ownerId !== currentUserId) {
       showToast("Você não pode editar propostas de outro usuário.", true);
+      return;
+    }
+    if (isGerente() && !isAdmin() && list[index].filial && list[index].filial !== currentUser.filial) {
+      showToast("Você não pode editar propostas de outra filial.", true);
       return;
     }
 
@@ -2599,8 +2699,12 @@ function excluirPropostaPorId(id) {
   const proposal = list.find((item) => item.id === id);
   if (!proposal) return;
 
-  if (!isAdmin() && proposal.ownerId !== currentUserId) {
+  if (!isAdmin() && !isGerente() && proposal.ownerId !== currentUserId) {
     showToast("Você não pode excluir propostas de outro usuário.", true);
+    return;
+  }
+  if (isGerente() && !isAdmin() && proposal.filial && proposal.filial !== currentUser.filial) {
+    showToast("Você não pode excluir propostas de outra filial.", true);
     return;
   }
 

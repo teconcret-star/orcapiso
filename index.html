@@ -65,8 +65,8 @@
         <nav class="tabs" aria-label="Navegação principal">
           <button class="tab-btn active" data-tab="tabPerfil">Meu Perfil</button>
           <button class="tab-btn" data-tab="tabProposta">Proposta Comercial</button>
-          <button class="tab-btn" data-tab="tabUsuarios" data-admin-only="true">Usuários</button>
-          <button class="tab-btn" data-tab="tabDashboard" data-admin-only="true">Dashboard</button>
+          <button class="tab-btn" data-tab="tabUsuarios" data-manager-only="true">Usuários</button>
+          <button class="tab-btn" data-tab="tabDashboard" data-manager-only="true">Dashboard</button>
         </nav>
 
         <section id="tabPerfil" class="tab-panel active">
@@ -729,7 +729,16 @@
                   <label for="usuarioTipo">Tipo de usuário</label>
                   <select id="usuarioTipo">
                     <option value="seller">Vendedor</option>
+                    <option value="gerente">Gerente</option>
                     <option value="admin">Administrador</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="usuarioFilial">Filial</label>
+                  <select id="usuarioFilial">
+                    <option value="Divinopolis">Divinopolis</option>
+                    <option value="Uberlandia">Uberlandia</option>
+                    <option value="Manhuaçu">Manhuaçu</option>
                   </select>
                 </div>
                 <div class="field">
@@ -765,6 +774,7 @@
                     <th>Nome</th>
                     <th>E-mail</th>
                     <th>Tipo</th>
+                    <th>Filial</th>
                     <th>Status</th>
                     <th>Cadastrado por</th>
                     <th>Ações</th>
@@ -772,7 +782,7 @@
                 </thead>
                 <tbody id="tabelaUsuariosBody">
                   <tr>
-                    <td colspan="6">Nenhum usuário cadastrado.</td>
+                    <td colspan="7">Nenhum usuário cadastrado.</td>
                   </tr>
                 </tbody>
               </table>
