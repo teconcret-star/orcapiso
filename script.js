@@ -1888,7 +1888,9 @@ function renderDashboardCharts(labels, propostas, valores, statusSummary = {}) {
 
 function getUserFormData() {
   const roleValue = $("usuarioTipo").value;
-  const role = roleValue === ROLE_ADMIN ? ROLE_ADMIN : roleValue === ROLE_GERENTE ? ROLE_GERENTE : ROLE_SELLER;
+  let role = ROLE_SELLER;
+  if (roleValue === ROLE_ADMIN) role = ROLE_ADMIN;
+  else if (roleValue === ROLE_GERENTE) role = ROLE_GERENTE;
   return {
     name: $("usuarioNome").value.trim(),
     email: normalizeEmail($("usuarioEmail").value),
@@ -2077,7 +2079,7 @@ async function salvarUsuario(event) {
   }
 
   // Gerente can only create/edit sellers in their own filial
-  if (isGerente() && !isAdmin()) {
+  if (isGerente()) {
     if (formData.role !== ROLE_SELLER) {
       showToast("Gerentes só podem cadastrar vendedores.", true);
       return;
@@ -2187,7 +2189,7 @@ function alternarStatusUsuario(id) {
   }
 
   // Gerente can only toggle users in their filial
-  if (isGerente() && !isAdmin()) {
+  if (isGerente()) {
     if (targetUser.filial && targetUser.filial !== currentUser.filial) {
       showToast("Você não pode alterar usuários de outra filial.", true);
       return;
@@ -2653,7 +2655,7 @@ async function salvarProposta() {
       showToast("Você não pode editar propostas de outro usuário.", true);
       return;
     }
-    if (isGerente() && !isAdmin() && list[index].filial && list[index].filial !== currentUser.filial) {
+    if (isGerente() && list[index].filial && list[index].filial !== currentUser.filial) {
       showToast("Você não pode editar propostas de outra filial.", true);
       return;
     }
@@ -2703,7 +2705,7 @@ function excluirPropostaPorId(id) {
     showToast("Você não pode excluir propostas de outro usuário.", true);
     return;
   }
-  if (isGerente() && !isAdmin() && proposal.filial && proposal.filial !== currentUser.filial) {
+  if (isGerente() && proposal.filial && proposal.filial !== currentUser.filial) {
     showToast("Você não pode excluir propostas de outra filial.", true);
     return;
   }
