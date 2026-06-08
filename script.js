@@ -3020,10 +3020,14 @@ function salvarRascunhoLocal() {
  const saved = writeDraftPayloadToStorage(payload);
  if (saved) {
    syncFirestoreDraftPayload(payload);
-   updateDraftStatus(`Rascunho salvo automaticamente às ${new Date().toLocaleTimeString("pt-BR", {
+   const time = new Date().toLocaleTimeString("pt-BR", {
      hour: "2-digit",
      minute: "2-digit"
-   })}${firebaseSyncEnabled ? " no Firestore." : " apenas em memória; pode ser perdido ao recarregar."}`);
+   });
+   const status = firebaseSyncEnabled 
+     ? `Rascunho salvo automaticamente às ${time} no Firestore.`
+     : `Rascunho salvo em memória às ${time} — será sincronizado quando a conexão for restaurada.`;
+   updateDraftStatus(status);
  }
 }
 
