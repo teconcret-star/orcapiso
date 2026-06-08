@@ -1957,7 +1957,7 @@ function renderDashboardCharts(labels, propostas, valores, statusSummary = {}) {
 }
 
 function getUserFormData() {
-  const role = $("usuarioTipo").value === ROLE_ADMIN ? ROLE_ADMIN : ROLE_SELLER;
+  const role = normalizeUserRole($("usuarioTipo").value);
   return {
     name: $("usuarioNome").value.trim(),
     email: normalizeEmail($("usuarioEmail").value),
