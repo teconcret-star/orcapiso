@@ -379,7 +379,7 @@ function updateFirebaseStatus(connected) {
   el.className = connected ? "firebase-status firebase-status-ok" : "firebase-status firebase-status-off";
   el.title = connected
     ? "Dados sincronizados com o servidor"
-    : "Sem conexão com o servidor — novas alterações não serão sincronizadas até a conexão voltar";
+    : "Sem conexão com o servidor — novas alterações ficam só em memória e podem ser perdidas ao recarregar a página";
 }
 
 function clearFirestoreListeners() {
@@ -647,7 +647,7 @@ function subscribeFirestoreChanges() {
       if (!snap.exists) return;
       const data = snap.data()?.data;
       if (!data || typeof data !== "object" || Array.isArray(data)) return;
-      writeJsonStorage(MACHINE_DB_STORAGE_KEY, data);
+      writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizeMachineDatabase(data));
       removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
       if (currentUserId) {
         applyMachineDatabaseToForm();
@@ -750,7 +750,7 @@ async function bootstrapStorageFromFirebase() {
     removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
 
     if (machineDb && !Array.isArray(machineDb) && typeof machineDb === "object") {
-      writeJsonStorage(MACHINE_DB_STORAGE_KEY, machineDb);
+      writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizeMachineDatabase(machineDb));
     } else {
       const legacyMachineDb = readLegacyJsonStorage(MACHINE_DB_STORAGE_KEY, null);
       if (legacyMachineDb && !Array.isArray(legacyMachineDb) && typeof legacyMachineDb === "object") {
@@ -2933,7 +2933,7 @@ function salvarRascunhoLocal() {
    updateDraftStatus(`Rascunho salvo automaticamente às ${new Date().toLocaleTimeString("pt-BR", {
      hour: "2-digit",
      minute: "2-digit"
-   })}${firebaseSyncEnabled ? " no Firestore." : " e aguardando reconexão com o Firestore."}`);
+   })}${firebaseSyncEnabled ? " no Firestore." : " apenas em memória; se a página for recarregada antes da reconexão, ele pode ser perdido."}`);
  }
 }
 
@@ -2963,7 +2963,7 @@ async function carregarRascunhoLocal() {
  if (!payload) {
    updateDraftStatus(firebaseSyncEnabled
      ? "Os dados do orçamento ficam salvos automaticamente no Firestore."
-     : "Conecte-se ao Firestore para sincronizar o rascunho entre dispositivos.");
+     : "Aguardando conexão com o Firestore para sincronizar o rascunho entre dispositivos.");
    return;
  }
 
