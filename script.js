@@ -2524,6 +2524,17 @@ function applyClientToProposal(client) {
   $("endereco").value = client.address || "";
 }
 
+function clearProposalClientFields() {
+  $("propostaClienteId").value = "";
+  $("cliente").value = "";
+  $("documento").value = "";
+  $("email").value = "";
+  $("telefone").value = "";
+  $("obra").value = "";
+  $("cep").value = "";
+  $("endereco").value = "";
+}
+
 function populateProposalClientSelect() {
   const select = $("propostaClienteId");
   if (!select) return;
@@ -2542,7 +2553,7 @@ function populateProposalClientSelect() {
   clients.forEach((client) => {
     const option = document.createElement("option");
     option.value = client.id;
-    option.textContent = client.project ? `${client.name} • ${client.project}` : client.name;
+    option.textContent = client.project ? `${client.name} - ${client.project}` : client.name;
     select.appendChild(option);
   });
 
@@ -2669,10 +2680,12 @@ function excluirClientePorId(id) {
     resetClientForm();
   }
   if ($("propostaClienteId").value === id) {
-    $("propostaClienteId").value = "";
+    clearProposalClientFields();
   }
   renderClientsTable();
   populateProposalClientSelect();
+  calcularOrcamento();
+  salvarRascunhoLocal();
   showToast("Cliente excluído com sucesso.");
 }
 
@@ -3488,7 +3501,12 @@ function bindStaticEvents() {
 
   $("propostaClienteId").addEventListener("change", () => {
     const client = getClientById($("propostaClienteId").value);
-    if (!client) return;
+    if (!client) {
+      clearProposalClientFields();
+      calcularOrcamento();
+      salvarRascunhoLocal();
+      return;
+    }
     applyClientToProposal(client);
     calcularOrcamento();
     salvarRascunhoLocal();
