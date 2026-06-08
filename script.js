@@ -522,6 +522,24 @@ function syncFirestoreDoc(docId, value) {
   });
 }
 
+function syncFirestoreDocAsync(docId, value) {
+  return new Promise((resolve) => {
+    const ref = getFirestoreDoc(docId);
+    if (!ref) {
+      scheduleFirebaseReconnect();
+      resolve();
+      return;
+    }
+    ref.set({ data: value })
+      .then(() => resolve())
+      .catch((error) => {
+        handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
+        resolve();
+      });
+  });
+}
+
+
 async function readFirestoreDraftPayload(userId = currentUserId) {
   const docId = getDraftFirestoreDocId(userId);
   if (!docId) return null;
@@ -589,6 +607,25 @@ function subscribeFirestoreChanges() {
   if (!firebaseSyncEnabled || !firestoreDb) return;
 
   const col = firestoreDb.collection(FIRESTORE_COLLECTION);
+
+  // Initialize missing documents with current local data to ensure they exist
+  const initializeDocument = (docId, defaultValue) => {
+    col.doc(docId).get().then((snap) => {
+      if (!snap.exists) {
+        col.doc(docId).set({ data: defaultValue }).catch((error) => {
+          console.warn(`Falha ao inicializar documento ${docId}:`, error);
+        });
+      }
+    }).catch((error) => {
+      console.warn(`Falha ao verificar documento ${docId}:`, error);
+    });
+  };
+
+  // Initialize documents that don't exist yet
+  initializeDocument(FIRESTORE_USERS_DOC, usersCache);
+  initializeDocument(FIRESTORE_PROPOSALS_DOC, readJsonStorage(PROPOSALS_STORAGE_KEY, []));
+  initializeDocument(FIRESTORE_CLIENTS_DOC, readJsonStorage(CLIENTS_STORAGE_KEY, []));
+  initializeDocument(FIRESTORE_MACHINE_DB_DOC, readJsonStorage(MACHINE_DB_STORAGE_KEY, DEFAULT_MACHINE_DATABASE));
 
   firestoreUnsubscribers.push(
     col.doc(FIRESTORE_USERS_DOC).onSnapshot((snap) => {
@@ -710,58 +747,69 @@ async function bootstrapStorageFromFirebase() {
       readFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, null)
     ]);
 
+    // Initialize or restore users and ensure Firestore document exists
     if (users && Array.isArray(users)) {
       usersCache = normalizeUsersForStorage(users);
     } else {
       const legacyUsers = readLegacyJsonStorage(USERS_STORAGE_KEY, null);
       if (legacyUsers && Array.isArray(legacyUsers) && legacyUsers.length) {
         usersCache = normalizeUsersForStorage(legacyUsers);
-        syncFirestoreDoc(FIRESTORE_USERS_DOC, usersCache);
       } else {
         usersCache = [];
       }
     }
     removeLegacyStorageItem(USERS_STORAGE_KEY);
 
+    // Initialize or restore proposals and ensure Firestore document exists
     if (proposals && Array.isArray(proposals)) {
       writeJsonStorage(PROPOSALS_STORAGE_KEY, proposals);
     } else {
       const legacyProposals = readLegacyJsonStorage(PROPOSALS_STORAGE_KEY, null);
       if (legacyProposals && Array.isArray(legacyProposals) && legacyProposals.length) {
         writeJsonStorage(PROPOSALS_STORAGE_KEY, legacyProposals);
-        syncFirestoreDoc(FIRESTORE_PROPOSALS_DOC, legacyProposals);
       } else {
         writeJsonStorage(PROPOSALS_STORAGE_KEY, []);
       }
     }
     removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
 
+    // Initialize or restore clients and ensure Firestore document exists
     if (clients && Array.isArray(clients)) {
       writeJsonStorage(CLIENTS_STORAGE_KEY, clients);
     } else {
       const legacyClients = readLegacyJsonStorage(CLIENTS_STORAGE_KEY, null);
       if (legacyClients && Array.isArray(legacyClients) && legacyClients.length) {
         writeJsonStorage(CLIENTS_STORAGE_KEY, legacyClients);
-        syncFirestoreDoc(FIRESTORE_CLIENTS_DOC, legacyClients);
       } else {
         writeJsonStorage(CLIENTS_STORAGE_KEY, []);
       }
     }
     removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
 
+    // Initialize or restore machine database and ensure Firestore document exists
+    let normalizedMachineDb;
     if (machineDb && !Array.isArray(machineDb) && typeof machineDb === "object") {
-      writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizeMachineDatabase(machineDb));
+      normalizedMachineDb = normalizeMachineDatabase(machineDb);
+      writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
     } else {
       const legacyMachineDb = readLegacyJsonStorage(MACHINE_DB_STORAGE_KEY, null);
       if (legacyMachineDb && !Array.isArray(legacyMachineDb) && typeof legacyMachineDb === "object") {
-        const normalizedMachineDb = normalizeMachineDatabase(legacyMachineDb);
+        normalizedMachineDb = normalizeMachineDatabase(legacyMachineDb);
         writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
-        syncFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, normalizedMachineDb);
       } else {
-        writeJsonStorage(MACHINE_DB_STORAGE_KEY, DEFAULT_MACHINE_DATABASE);
+        normalizedMachineDb = DEFAULT_MACHINE_DATABASE;
+        writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
       }
     }
     removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
+
+    // Sync all data to Firestore in parallel to ensure documents exist
+    await Promise.all([
+      syncFirestoreDocAsync(FIRESTORE_USERS_DOC, usersCache),
+      syncFirestoreDocAsync(FIRESTORE_PROPOSALS_DOC, readJsonStorage(PROPOSALS_STORAGE_KEY, [])),
+      syncFirestoreDocAsync(FIRESTORE_CLIENTS_DOC, readJsonStorage(CLIENTS_STORAGE_KEY, [])),
+      syncFirestoreDocAsync(FIRESTORE_MACHINE_DB_DOC, normalizedMachineDb)
+    ]);
   } catch (error) {
     console.error("Falha ao carregar dados do Firebase:", error);
   }
