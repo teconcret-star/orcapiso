@@ -1511,8 +1511,8 @@ function saveSession(userId) {
   removeLegacyStorageItem(SESSION_STORAGE_KEY);
   const session = { userId: sessionUserId };
   const success = writeJsonStorage(SESSION_STORAGE_KEY, session);
-  writeBrowserSession(session);
-  return success;
+  const browserSuccess = writeBrowserSession(session);
+  return success && browserSuccess;
 }
 
 function clearSession() {
