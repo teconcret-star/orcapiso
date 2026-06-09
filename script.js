@@ -36,6 +36,7 @@ const FIRESTORE_SETTINGS = {
   experimentalAutoDetectLongPolling: true,
   useFetchStreams: false
 };
+const HEX_BYTE_LENGTH = 2;
 const FIREBASE_INIT_CONNECTION_DELAY_MS = 1000;
 const FIREBASE_RECONNECT_DELAY_MS = 3000;
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
@@ -120,7 +121,7 @@ let chartValorPorVendedor = null;
 let chartParticipacaoVendedor = null;
 let chartPropostasPorStatus = null;
 let chartValorPorStatus = null;
-let uniqueIdFallbackCounter = 0;
+let idGenerationFallbackCounter = 0;
 let pendingSyncCheckIntervalId = null;
 const runtimeStorage = new Map();
 const pendingSyncQueue = new Map(); // Track failed syncs: docId -> { value, retries, nextRetryTime }
@@ -221,19 +222,9 @@ function createUniqueId() {
     const bytes = window.crypto.getRandomValues(new Uint8Array(16));
     return `${Date.now()}-${bytesToHex(bytes)}`;
   }
-  uniqueIdFallbackCounter += 1;
-  return `${Date.now()}-${uniqueIdFallbackCounter}`;
-}
-
-function containsCredentialFields(value) {
-  if (!value || typeof value !== "object") return false;
-  if (Array.isArray(value)) return value.some(containsCredentialFields);
-  return Object.keys(value).some((key) => (
-    key === "password"
-    || key === "passwordHash"
-    || key === "passwordSalt"
-    || containsCredentialFields(value[key])
-  ));
+  idGenerationFallbackCounter += 1;
+  const elapsed = Math.floor(window.performance?.now?.() || 0);
+  return `${Date.now()}-${elapsed}-${idGenerationFallbackCounter}`;
 }
 
 function normalizeEmail(value) {
@@ -335,11 +326,6 @@ function writeJsonStorage(key, value) {
   try {
     const cloned = cloneStorageValue(value);
     runtimeStorage.set(key, cloned);
-
-    // Also persist to localStorage for durability across page reloads
-    if (window.localStorage && !containsCredentialFields(cloned)) {
-      window.localStorage.setItem(key, JSON.stringify(cloned));
-    }
 
     return true;
   } catch {
@@ -1026,18 +1012,18 @@ async function hashLegacyPassword(password) {
   const data = new TextEncoder().encode(password);
   const digest = await window.crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(digest))
-    .map((item) => item.toString(16).padStart(2, "0"))
+    .map((byteValue) => byteValue.toString(16).padStart(HEX_BYTE_LENGTH, "0"))
     .join("");
 }
 
 function bytesToHex(bytes) {
   return Array.from(bytes)
-    .map((item) => item.toString(16).padStart(2, "0"))
+    .map((byteValue) => byteValue.toString(16).padStart(HEX_BYTE_LENGTH, "0"))
     .join("");
 }
 
 function hexToBytes(hex) {
-  const pairs = hex.match(/.{1,2}/g) || [];
+  const pairs = hex.match(new RegExp(`.{1,${HEX_BYTE_LENGTH}}`, "g")) || [];
   return new Uint8Array(pairs.map((pair) => parseInt(pair, 16)));
 }
 
