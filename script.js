@@ -611,13 +611,27 @@ function canDeleteUser(user, actor = currentUser) {
   return false;
 }
 
+function isPlainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
 function shouldPreserveUsersCache(normalizedUsers) {
+  // Evita substituir um cache válido por lista vazia durante leituras transitórias do Firestore.
   return Boolean(
     currentUserId
     && currentUser
-    && Array.isArray(normalizedUsers)
-    && normalizedUsers.length === 0
+    && normalizedUsers?.length === 0
     && usersCache.length
+  );
+}
+
+function shouldFallbackToInMemoryUser(storedUser) {
+  // Se o Firestore caiu após o login, mantém o usuário já validado em memória até a reconexão.
+  return Boolean(
+    !storedUser
+    && currentUser
+    && !firebaseSyncEnabled
+    && (isAdmin(currentUser) || currentUser.active)
   );
 }
 
@@ -1026,14 +1040,14 @@ async function bootstrapStorageFromFirebase() {
 
     // Initialize or restore machine database and ensure Firestore document exists
     let normalizedMachineDb;
-    if (machineDb && !Array.isArray(machineDb) && typeof machineDb === "object") {
+    if (isPlainObject(machineDb)) {
       normalizedMachineDb = normalizeMachineDatabase(machineDb);
     } else {
       const legacyMachineDb = readLegacyJsonStorage(MACHINE_DB_STORAGE_KEY, null);
       const currentMachineDb = readJsonStorage(MACHINE_DB_STORAGE_KEY, null);
-      if (legacyMachineDb && !Array.isArray(legacyMachineDb) && typeof legacyMachineDb === "object") {
+      if (isPlainObject(legacyMachineDb)) {
         normalizedMachineDb = normalizeMachineDatabase(legacyMachineDb);
-      } else if (currentMachineDb && !Array.isArray(currentMachineDb) && typeof currentMachineDb === "object") {
+      } else if (isPlainObject(currentMachineDb)) {
         normalizedMachineDb = normalizeMachineDatabase(currentMachineDb);
       } else {
         normalizedMachineDb = DEFAULT_MACHINE_DATABASE;
@@ -1646,7 +1660,7 @@ function refreshCurrentUser() {
   }
 
   const storedUser = getCurrentUserFromStorage();
-  if (!storedUser && currentUser && !firebaseSyncEnabled && (isAdmin(currentUser) || currentUser.active)) {
+  if (shouldFallbackToInMemoryUser(storedUser)) {
     return currentUser;
   }
 
