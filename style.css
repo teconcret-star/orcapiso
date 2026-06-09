@@ -233,6 +233,11 @@ body.auth-view .auth-card h2 {
   color: #065f46;
 }
 
+.firebase-status-syncing {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
 .firebase-status-off {
   background: #fef3c7;
   color: #92400e;
