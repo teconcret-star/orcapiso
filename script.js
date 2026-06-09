@@ -38,6 +38,7 @@ const FIRESTORE_SETTINGS = {
 };
 const HEX_BYTE_LENGTH = 2;
 const FIREBASE_INIT_CONNECTION_DELAY_MS = 1000;
+const FIREBASE_OPERATION_TIMEOUT_MS = 5000;
 const FIREBASE_RECONNECT_DELAY_MS = 3000;
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const IFRAME_CLEANUP_DELAY_MS = 600;
@@ -557,6 +558,18 @@ function handleFirebaseConnectionError(message, error) {
   scheduleFirebaseReconnect();
 }
 
+function withTimeout(promise, timeoutMs, timeoutMessage) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise])
+    .finally(() => window.clearTimeout(timeoutId));
+}
+
 function handleFirebaseSyncError(docId, error, value) {
   // Non-fatal: sync failed but connection is still valid
   console.warn(`Falha ao sincronizar ${docId}, agendando retentativa:`, error);
@@ -639,7 +652,11 @@ async function readFirestoreDoc(docId, fallback) {
   }
   try {
     console.debug(`[Firebase Read] Lendo ${docId}...`);
-    const snap = await ref.get();
+    const snap = await withTimeout(
+      ref.get(),
+      FIREBASE_OPERATION_TIMEOUT_MS,
+      `Tempo esgotado ao ler ${docId}`
+    );
     if (snap.exists) {
       console.log(`[Firebase Read] ✓ Sucesso ao ler ${docId}`);
       return snap.data()?.data ?? fallback;
@@ -663,7 +680,11 @@ function syncFirestoreDoc(docId, value) {
   }
 
   console.debug(`[Firebase Sync] Sincronizando ${docId}...`);
-  ref.set({ data: value })
+  withTimeout(
+    ref.set({ data: value }),
+    FIREBASE_OPERATION_TIMEOUT_MS,
+    `Tempo esgotado ao sincronizar ${docId}`
+  )
     .then(() => {
       console.log(`[Firebase Sync] ✓ Sucesso ao sincronizar ${docId}`);
       // Remove from retry queue on success
@@ -689,7 +710,11 @@ function syncFirestoreDocAsync(docId, value) {
     }
 
     console.debug(`[Firebase Sync] Sincronizando ${docId} (async)...`);
-    ref.set({ data: value })
+    withTimeout(
+      ref.set({ data: value }),
+      FIREBASE_OPERATION_TIMEOUT_MS,
+      `Tempo esgotado ao sincronizar ${docId}`
+    )
       .then(() => {
         console.log(`[Firebase Sync] ✓ Sucesso ao sincronizar ${docId} (async)`);
         if (pendingSyncQueue.has(docId)) {
@@ -713,7 +738,11 @@ async function readFirestoreDraftPayload(userId = currentUserId) {
   const ref = getFirestoreDoc(docId);
   if (!ref) return null;
   try {
-    const snap = await ref.get();
+    const snap = await withTimeout(
+      ref.get(),
+      FIREBASE_OPERATION_TIMEOUT_MS,
+      `Tempo esgotado ao ler ${docId}`
+    );
     if (!snap.exists) return null;
     const data = snap.data() || {};
     return normalizeDraftPayload({
@@ -740,15 +769,19 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
     scheduleFirebaseReconnect();
     return;
   }
-  ref.set({
-    data: {
-      updatedAt: normalized.updatedAtClient,
-      updatedAtClient: normalized.updatedAtClient,
-      pendingSync: false,
-      snapshot: normalized.snapshot
-    },
-    updatedAtServer: serverTimestamp
-  }).catch((error) => {
+  withTimeout(
+    ref.set({
+      data: {
+        updatedAt: normalized.updatedAtClient,
+        updatedAtClient: normalized.updatedAtClient,
+        pendingSync: false,
+        snapshot: normalized.snapshot
+      },
+      updatedAtServer: serverTimestamp
+    }),
+    FIREBASE_OPERATION_TIMEOUT_MS,
+    `Tempo esgotado ao sincronizar ${docId}`
+  ).catch((error) => {
     console.error(`Falha ao sincronizar ${docId}:`, error);
     handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
     // Ensure the draft is marked as pending sync in local storage if sync fails
@@ -3993,26 +4026,33 @@ function bindStaticEvents() {
 }
 
 async function init() {
-  bindStaticEvents();
-  initializeFirebaseConnection();
-  // Allow Firestore client time to establish network connection before reading documents
-  await new Promise((resolve) => setTimeout(resolve, FIREBASE_INIT_CONNECTION_DELAY_MS));
-  await bootstrapStorageFromFirebase();
-  subscribeFirestoreChanges();
-  await ensureAdminExists();
-  applyMachineDatabaseToForm();
-  updateAppVisibility();
-  await restoreSession();
-  atualizarTextoBotaoProposta();
-  atualizarModoFuncionarios({ preserveManualValue: false });
-  atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
-  atualizarCampoCuraQuimica({ preserveValueWhenDisabled: false });
-  atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
-  atualizarCampoStatusProposta({ preserveValueWhenHidden: false });
-  if (!$("propostaTextoPadrao").value.trim()) {
-    $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
+  try {
+    bindStaticEvents();
+    initializeFirebaseConnection();
+    // Allow Firestore client time to establish network connection before reading documents
+    await new Promise((resolve) => setTimeout(resolve, FIREBASE_INIT_CONNECTION_DELAY_MS));
+    await bootstrapStorageFromFirebase();
+    subscribeFirestoreChanges();
+    await ensureAdminExists();
+    applyMachineDatabaseToForm();
+    updateAppVisibility();
+    await restoreSession();
+    atualizarTextoBotaoProposta();
+    atualizarModoFuncionarios({ preserveManualValue: false });
+    atualizarCampoPisoTela({ preserveValueWhenDisabled: false });
+    atualizarCampoCuraQuimica({ preserveValueWhenDisabled: false });
+    atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
+    atualizarCampoStatusProposta({ preserveValueWhenHidden: false });
+    if (!$("propostaTextoPadrao").value.trim()) {
+      $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
+    }
+    calcularOrcamento();
+  } catch (error) {
+    console.error("Falha ao iniciar o sistema:", error);
+    updateFirebaseStatus(false);
+    updateAppVisibility();
+    showToast("Falha ao iniciar alguns recursos. Tente recarregar a página.", true);
   }
-  calcularOrcamento();
 }
 
 init();
