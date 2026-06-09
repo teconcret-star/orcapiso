@@ -848,6 +848,12 @@ function sortFirestoreCollectionRecords(collectionName, records) {
   return list;
 }
 
+function chooseFirestoreCollectionSource(collectionRecords, legacyRecords) {
+  if (Array.isArray(collectionRecords) && collectionRecords.length > 0) return collectionRecords;
+  if (Array.isArray(legacyRecords) && legacyRecords.length > 0) return legacyRecords;
+  return Array.isArray(collectionRecords) ? collectionRecords : null;
+}
+
 async function readFirestoreDoc(docId, fallback) {
   const ref = getFirestoreDoc(docId);
   if (!ref) {
@@ -933,7 +939,22 @@ function syncFirestoreDoc(docId, value) {
 
 function syncFirestoreCollectionRecords(collectionName, records) {
   const syncDocId = getFirestoreCollectionSyncDocId(collectionName);
-  const list = Array.isArray(records) ? records : [];
+  let generatedMissingIds = false;
+  const list = (Array.isArray(records) ? records : []).map((record) => {
+    if (record?.id) return record;
+    generatedMissingIds = true;
+    const baseRecord = record && typeof record === "object" ? record : {};
+    return { ...baseRecord, id: createUniqueId() };
+  });
+  if (generatedMissingIds) {
+    if (collectionName === FIRESTORE_USERS_COLLECTION) {
+      usersCache = normalizeUsersForStorage(list);
+    } else if (collectionName === FIRESTORE_PROPOSALS_COLLECTION) {
+      writeJsonStorage(PROPOSALS_STORAGE_KEY, list);
+    } else if (collectionName === FIRESTORE_CLIENTS_COLLECTION) {
+      writeJsonStorage(CLIENTS_STORAGE_KEY, list);
+    }
+  }
   const ref = getFirestoreCollection(collectionName);
   if (!ref) {
     console.debug(`[Firebase Sync] Firestore não conectado, adicionando coleção ${collectionName} à fila de retentativa`);
@@ -951,10 +972,8 @@ function syncFirestoreCollectionRecords(collectionName, records) {
     snap.forEach((docSnap) => currentIds.add(docSnap.id));
 
     list.forEach((record) => {
-      const id = record?.id || createUniqueId();
-      const payload = { ...record, id };
-      currentIds.delete(id);
-      batch.set(ref.doc(id), payload);
+      currentIds.delete(record.id);
+      batch.set(ref.doc(record.id), record);
     });
 
     currentIds.forEach((id) => {
@@ -1259,9 +1278,7 @@ async function bootstrapStorageFromFirebase() {
     ]);
 
     const pendingUsers = getPendingSyncValue(FIRESTORE_USERS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_USERS_DOC);
-    const remoteUsers = usersCollection.length > 0
-      ? usersCollection
-      : (Array.isArray(legacyUsersDoc) && legacyUsersDoc.length > 0 ? legacyUsersDoc : usersCollection);
+    const remoteUsers = chooseFirestoreCollectionSource(usersCollection, legacyUsersDoc);
     if (Array.isArray(pendingUsers) || Array.isArray(remoteUsers)) {
       const normalizedUsers = normalizeUsersForStorage(Array.isArray(pendingUsers) ? pendingUsers : remoteUsers);
       if (shouldPreserveUsersCache(normalizedUsers)) {
@@ -1280,9 +1297,7 @@ async function bootstrapStorageFromFirebase() {
     removeLegacyStorageItem(USERS_STORAGE_KEY);
 
     const pendingProposals = getPendingSyncValue(FIRESTORE_PROPOSALS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_PROPOSALS_DOC);
-    const remoteProposals = proposalsCollection.length > 0
-      ? proposalsCollection
-      : (Array.isArray(legacyProposalsDoc) && legacyProposalsDoc.length > 0 ? legacyProposalsDoc : proposalsCollection);
+    const remoteProposals = chooseFirestoreCollectionSource(proposalsCollection, legacyProposalsDoc);
     if (Array.isArray(pendingProposals) || Array.isArray(remoteProposals)) {
       writeJsonStorage(PROPOSALS_STORAGE_KEY, Array.isArray(pendingProposals) ? pendingProposals : remoteProposals);
     } else {
@@ -1299,9 +1314,7 @@ async function bootstrapStorageFromFirebase() {
     removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
 
     const pendingClients = getPendingSyncValue(FIRESTORE_CLIENTS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_CLIENTS_DOC);
-    const remoteClients = clientsCollection.length > 0
-      ? clientsCollection
-      : (Array.isArray(legacyClientsDoc) && legacyClientsDoc.length > 0 ? legacyClientsDoc : clientsCollection);
+    const remoteClients = chooseFirestoreCollectionSource(clientsCollection, legacyClientsDoc);
     if (Array.isArray(pendingClients) || Array.isArray(remoteClients)) {
       writeJsonStorage(CLIENTS_STORAGE_KEY, Array.isArray(pendingClients) ? pendingClients : remoteClients);
     } else {
