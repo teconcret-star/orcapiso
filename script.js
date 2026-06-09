@@ -122,6 +122,10 @@ let chartPropostasPorStatus = null;
 let chartValorPorStatus = null;
 let pendingSyncCheckIntervalId = null;
 const runtimeStorage = new Map();
+const pendingSyncQueue = new Map(); // Track failed syncs: docId -> { value, retries, nextRetryTime }
+const SYNC_RETRY_DELAYS_MS = [1000, 3000, 5000, 10000, 30000]; // Exponential backoff
+const SYNC_MAX_RETRIES = 5;
+let documentSyncCheckIntervalId = null;
 
 function cloneStorageValue(value) {
   if (value === undefined) return undefined;
@@ -434,21 +438,37 @@ function clearFirebaseReconnectTimeout() {
 }
 
 function startPendingSyncCheck() {
-  // Periodically check and sync pending draft data if Firebase is connected
-  if (pendingSyncCheckIntervalId) return;
+  // Periodically check and sync pending draft data and failed document syncs
+  if (documentSyncCheckIntervalId) return;
   
-  pendingSyncCheckIntervalId = window.setInterval(() => {
-    if (!currentUserId || !firebaseSyncEnabled || !firestoreDb) return;
-    
-    const draftPayload = readDraftPayloadFromStorage();
-    if (draftPayload?.pendingSync) {
-      console.log("Attempting to sync pending draft data...");
-      syncFirestoreDraftPayload(draftPayload);
+  documentSyncCheckIntervalId = window.setInterval(() => {
+    // Sync pending drafts
+    if (currentUserId && firebaseSyncEnabled && firestoreDb) {
+      const draftPayload = readDraftPayloadFromStorage();
+      if (draftPayload?.pendingSync) {
+        console.log("[Firebase Sync] Tentando sincronizar rascunho pendente...");
+        syncFirestoreDraftPayload(draftPayload);
+      }
     }
-  }, 30000); // Check every 30 seconds to minimize battery impact on mobile devices
+    
+    // Retry failed document syncs
+    if (firebaseSyncEnabled && firestoreDb && pendingSyncQueue.size > 0) {
+      const now = Date.now();
+      for (const [docId, entry] of pendingSyncQueue.entries()) {
+        if (now >= entry.nextRetryTime) {
+          console.log(`[Firebase Sync] Retentando sincronizar ${docId} (tentativa ${entry.retries + 1}/${SYNC_MAX_RETRIES})...`);
+          syncFirestoreDoc(docId, entry.value);
+        }
+      }
+    }
+  }, 5000); // Check every 5 seconds for faster retry detection
 }
 
 function stopPendingSyncCheck() {
+  if (documentSyncCheckIntervalId) {
+    window.clearInterval(documentSyncCheckIntervalId);
+    documentSyncCheckIntervalId = null;
+  }
   if (pendingSyncCheckIntervalId) {
     window.clearInterval(pendingSyncCheckIntervalId);
     pendingSyncCheckIntervalId = null;
@@ -478,6 +498,16 @@ async function reconnectFirebase() {
       await new Promise((resolve) => setTimeout(resolve, FIREBASE_INIT_CONNECTION_DELAY_MS));
       await bootstrapStorageFromFirebase();
       subscribeFirestoreChanges();
+      
+      // Flush pending sync queue after successful reconnection
+      if (pendingSyncQueue.size > 0) {
+        console.log(`[Firebase Sync] Sincronizando ${pendingSyncQueue.size} documentos da fila de retentativa...`);
+        for (const [docId, entry] of pendingSyncQueue.entries()) {
+          console.log(`[Firebase Sync] Sincronizando ${docId} da fila de retentativa...`);
+          syncFirestoreDoc(docId, entry.value);
+        }
+      }
+      
       if (currentUserId) {
         startPendingSyncCheck();
         refreshAppFromStorage();
@@ -523,6 +553,33 @@ function handleFirebaseConnectionError(message, error) {
   scheduleFirebaseReconnect();
 }
 
+function handleFirebaseSyncError(docId, error, value) {
+  // Non-fatal: sync failed but connection is still valid
+  console.warn(`Falha ao sincronizar ${docId}, agendando retentativa:`, error);
+  
+  if (!pendingSyncQueue.has(docId)) {
+    pendingSyncQueue.set(docId, {
+      value: value,
+      retries: 0,
+      nextRetryTime: Date.now() + SYNC_RETRY_DELAYS_MS[0]
+    });
+    console.log(`[Firebase Sync] Adicionado à fila de retentativa: ${docId}`);
+  } else {
+    const entry = pendingSyncQueue.get(docId);
+    entry.value = value; // Update with latest value
+    entry.retries = Math.min(entry.retries + 1, SYNC_MAX_RETRIES);
+    const delayIndex = Math.min(entry.retries, SYNC_RETRY_DELAYS_MS.length - 1);
+    entry.nextRetryTime = Date.now() + SYNC_RETRY_DELAYS_MS[delayIndex];
+    console.log(`[Firebase Sync] Retentativa ${entry.retries}/${SYNC_MAX_RETRIES} para ${docId}, próxima em ${SYNC_RETRY_DELAYS_MS[delayIndex]}ms`);
+  }
+  
+  // Don't disable Firebase on individual sync failures
+  // Just schedule a reconnect check if offline
+  if (!firebaseSyncEnabled) {
+    scheduleFirebaseReconnect();
+  }
+}
+
 function getUserCreatorName(user = {}) {
   return user.createdByName || "Sistema";
 }
@@ -536,24 +593,30 @@ function canDeleteUser(user, actor = currentUser) {
 
 function initializeFirebaseConnection() {
   if (!window.firebase?.firestore) {
+    console.warn("[Firebase Init] Firebase Firestore SDK não carregado");
     updateFirebaseStatus(false);
     return false;
   }
 
   try {
+    console.log("[Firebase Init] Inicializando Firebase...");
     if (!window.firebase.apps?.length) {
+      console.debug("[Firebase Init] Inicializando app Firebase com config...");
       window.firebase.initializeApp(FIREBASE_CONFIG);
     }
     firestoreDb = window.firebase.firestore();
     if (!firestoreSettingsApplied) {
+      console.debug("[Firebase Init] Aplicando configurações Firestore...");
       firestoreDb.settings(FIRESTORE_SETTINGS);
       firestoreSettingsApplied = true;
     }
     firebaseSyncEnabled = true;
     clearFirebaseReconnectTimeout();
+    console.log("[Firebase Init] ✓ Firebase conectado com sucesso");
     updateFirebaseStatus(true);
     return true;
   } catch (error) {
+    console.error("[Firebase Init] ✗ Erro ao inicializar Firebase:", error?.code, error?.message);
     handleFirebaseConnectionError("Falha ao inicializar Firebase:", error);
     return false;
   }
@@ -566,11 +629,22 @@ function getFirestoreDoc(docId) {
 
 async function readFirestoreDoc(docId, fallback) {
   const ref = getFirestoreDoc(docId);
-  if (!ref) return fallback;
+  if (!ref) {
+    console.warn(`[Firebase Read] Não foi possível obter referência para ${docId}`);
+    return fallback;
+  }
   try {
+    console.debug(`[Firebase Read] Lendo ${docId}...`);
     const snap = await ref.get();
-    return snap.exists ? (snap.data()?.data ?? fallback) : fallback;
+    if (snap.exists) {
+      console.log(`[Firebase Read] ✓ Sucesso ao ler ${docId}`);
+      return snap.data()?.data ?? fallback;
+    } else {
+      console.debug(`[Firebase Read] Documento não existe: ${docId}, usando fallback`);
+      return fallback;
+    }
   } catch (error) {
+    console.error(`[Firebase Read] ✗ Erro ao ler ${docId}:`, error?.code, error?.message);
     handleFirebaseConnectionError(`Falha ao ler ${docId}:`, error);
     return fallback;
   }
@@ -579,26 +653,50 @@ async function readFirestoreDoc(docId, fallback) {
 function syncFirestoreDoc(docId, value) {
   const ref = getFirestoreDoc(docId);
   if (!ref) {
-    scheduleFirebaseReconnect();
+    console.debug(`[Firebase Sync] Firestore não conectado, adicionando ${docId} à fila de retentativa`);
+    handleFirebaseSyncError(docId, new Error("Firestore not connected"), value);
     return;
   }
-  ref.set({ data: value }).catch((error) => {
-    handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
-  });
+  
+  console.debug(`[Firebase Sync] Sincronizando ${docId}...`);
+  ref.set({ data: value })
+    .then(() => {
+      console.log(`[Firebase Sync] ✓ Sucesso ao sincronizar ${docId}`);
+      // Remove from retry queue on success
+      if (pendingSyncQueue.has(docId)) {
+        pendingSyncQueue.delete(docId);
+        console.log(`[Firebase Sync] Removido ${docId} da fila de retentativa`);
+      }
+    })
+    .catch((error) => {
+      console.warn(`[Firebase Sync] ✗ Erro ao sincronizar ${docId}:`, error?.code, error?.message);
+      handleFirebaseSyncError(docId, error, value);
+    });
 }
 
 function syncFirestoreDocAsync(docId, value) {
   return new Promise((resolve) => {
     const ref = getFirestoreDoc(docId);
     if (!ref) {
-      scheduleFirebaseReconnect();
+      console.debug(`[Firebase Sync] Firestore não conectado, agendando retentativa para ${docId}`);
+      handleFirebaseSyncError(docId, new Error("Firestore not connected"), value);
       resolve();
       return;
     }
+    
+    console.debug(`[Firebase Sync] Sincronizando ${docId} (async)...`);
     ref.set({ data: value })
-      .then(() => resolve())
+      .then(() => {
+        console.log(`[Firebase Sync] ✓ Sucesso ao sincronizar ${docId} (async)`);
+        if (pendingSyncQueue.has(docId)) {
+          pendingSyncQueue.delete(docId);
+          console.log(`[Firebase Sync] Removido ${docId} da fila de retentativa`);
+        }
+        resolve();
+      })
       .catch((error) => {
-        handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
+        console.warn(`[Firebase Sync] ✗ Erro ao sincronizar ${docId} (async):`, error?.code, error?.message);
+        handleFirebaseSyncError(docId, error, value);
         resolve();
       });
   });
