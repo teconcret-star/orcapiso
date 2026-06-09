@@ -157,13 +157,10 @@ function cloneStorageValue(value) {
 }
 
 function getFirestoreStorageKey(docId) {
-  if (docId === FIRESTORE_USERS_DOC) return USERS_STORAGE_KEY;
-  if (docId === FIRESTORE_PROPOSALS_DOC) return PROPOSALS_STORAGE_KEY;
-  if (docId === FIRESTORE_CLIENTS_DOC) return CLIENTS_STORAGE_KEY;
+  if (docId === FIRESTORE_USERS_DOC || docId === FIRESTORE_USERS_SYNC_DOC) return USERS_STORAGE_KEY;
+  if (docId === FIRESTORE_PROPOSALS_DOC || docId === FIRESTORE_PROPOSALS_SYNC_DOC) return PROPOSALS_STORAGE_KEY;
+  if (docId === FIRESTORE_CLIENTS_DOC || docId === FIRESTORE_CLIENTS_SYNC_DOC) return CLIENTS_STORAGE_KEY;
   if (docId === FIRESTORE_MACHINE_DB_DOC) return MACHINE_DB_STORAGE_KEY;
-  if (docId === FIRESTORE_USERS_SYNC_DOC) return USERS_STORAGE_KEY;
-  if (docId === FIRESTORE_PROPOSALS_SYNC_DOC) return PROPOSALS_STORAGE_KEY;
-  if (docId === FIRESTORE_CLIENTS_SYNC_DOC) return CLIENTS_STORAGE_KEY;
   if (docId?.startsWith?.(FIRESTORE_DRAFT_DOC_PREFIX)) {
     const userId = docId.slice(FIRESTORE_DRAFT_DOC_PREFIX.length);
     return userId ? `${DRAFT_STORAGE_KEY_PREFIX}${userId}` : "";
@@ -986,6 +983,16 @@ function syncFirestoreCollectionRecords(collectionName, records) {
     });
 }
 
+function removeLegacyAggregateFirestoreDocs() {
+  [FIRESTORE_USERS_DOC, FIRESTORE_PROPOSALS_DOC, FIRESTORE_CLIENTS_DOC].forEach((docId) => {
+    const ref = getFirestoreDoc(docId);
+    if (!ref) return;
+    ref.delete().catch((error) => {
+      console.warn(`Falha ao remover documento legado ${docId}:`, error);
+    });
+  });
+}
+
 function syncFirestoreDocAsync(docId, value) {
   return new Promise((resolve) => {
     const ref = getFirestoreDoc(docId);
@@ -1252,7 +1259,9 @@ async function bootstrapStorageFromFirebase() {
     ]);
 
     const pendingUsers = getPendingSyncValue(FIRESTORE_USERS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_USERS_DOC);
-    const remoteUsers = usersCollection.length ? usersCollection : legacyUsersDoc;
+    const remoteUsers = usersCollection.length > 0
+      ? usersCollection
+      : (Array.isArray(legacyUsersDoc) && legacyUsersDoc.length > 0 ? legacyUsersDoc : usersCollection);
     if (Array.isArray(pendingUsers) || Array.isArray(remoteUsers)) {
       const normalizedUsers = normalizeUsersForStorage(Array.isArray(pendingUsers) ? pendingUsers : remoteUsers);
       if (shouldPreserveUsersCache(normalizedUsers)) {
@@ -1271,7 +1280,9 @@ async function bootstrapStorageFromFirebase() {
     removeLegacyStorageItem(USERS_STORAGE_KEY);
 
     const pendingProposals = getPendingSyncValue(FIRESTORE_PROPOSALS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_PROPOSALS_DOC);
-    const remoteProposals = proposalsCollection.length ? proposalsCollection : legacyProposalsDoc;
+    const remoteProposals = proposalsCollection.length > 0
+      ? proposalsCollection
+      : (Array.isArray(legacyProposalsDoc) && legacyProposalsDoc.length > 0 ? legacyProposalsDoc : proposalsCollection);
     if (Array.isArray(pendingProposals) || Array.isArray(remoteProposals)) {
       writeJsonStorage(PROPOSALS_STORAGE_KEY, Array.isArray(pendingProposals) ? pendingProposals : remoteProposals);
     } else {
@@ -1288,7 +1299,9 @@ async function bootstrapStorageFromFirebase() {
     removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
 
     const pendingClients = getPendingSyncValue(FIRESTORE_CLIENTS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_CLIENTS_DOC);
-    const remoteClients = clientsCollection.length ? clientsCollection : legacyClientsDoc;
+    const remoteClients = clientsCollection.length > 0
+      ? clientsCollection
+      : (Array.isArray(legacyClientsDoc) && legacyClientsDoc.length > 0 ? legacyClientsDoc : clientsCollection);
     if (Array.isArray(pendingClients) || Array.isArray(remoteClients)) {
       writeJsonStorage(CLIENTS_STORAGE_KEY, Array.isArray(pendingClients) ? pendingClients : remoteClients);
     } else {
@@ -1330,6 +1343,7 @@ async function bootstrapStorageFromFirebase() {
       syncFirestoreCollectionRecords(FIRESTORE_CLIENTS_COLLECTION, readJsonStorage(CLIENTS_STORAGE_KEY, [])),
       syncFirestoreDocAsync(FIRESTORE_MACHINE_DB_DOC, normalizedMachineDb)
     ]);
+    removeLegacyAggregateFirestoreDocs();
   } catch (error) {
     console.error("Falha ao carregar dados do Firebase:", error);
   }
