@@ -1495,7 +1495,8 @@ function normalizeSessionUserId(userId) {
 
 function writeBrowserSession(session) {
   try {
-    window.localStorage?.setItem?.(SESSION_STORAGE_KEY, JSON.stringify(session));
+    if (!window.localStorage) throw new Error("localStorage unavailable");
+    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
     return true;
   } catch (error) {
     console.warn("Falha ao persistir sessão no navegador:", error);
