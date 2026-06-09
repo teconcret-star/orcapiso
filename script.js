@@ -236,6 +236,10 @@ function getPendingSyncValue(docId) {
   return cloneStorageValue(pendingSyncQueue.get(docId).value);
 }
 
+function shouldSkipFirestoreSnapshot(docId, snap) {
+  return pendingSyncQueue.has(docId) && !snap.metadata?.hasPendingWrites;
+}
+
 function markPendingFirestoreSync(docId, value) {
   const existingEntry = pendingSyncQueue.get(docId);
   pendingSyncQueue.set(docId, {
@@ -995,7 +999,7 @@ function subscribeFirestoreChanges() {
   firestoreUnsubscribers.push(
     col.doc(FIRESTORE_USERS_DOC).onSnapshot((snap) => {
       if (!snap.exists) return;
-      if (pendingSyncQueue.has(FIRESTORE_USERS_DOC) && !snap.metadata?.hasPendingWrites) return;
+      if (shouldSkipFirestoreSnapshot(FIRESTORE_USERS_DOC, snap)) return;
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
       removeLegacyStorageItem(USERS_STORAGE_KEY);
@@ -1021,7 +1025,7 @@ function subscribeFirestoreChanges() {
   firestoreUnsubscribers.push(
     col.doc(FIRESTORE_PROPOSALS_DOC).onSnapshot((snap) => {
       if (!snap.exists) return;
-      if (pendingSyncQueue.has(FIRESTORE_PROPOSALS_DOC) && !snap.metadata?.hasPendingWrites) return;
+      if (shouldSkipFirestoreSnapshot(FIRESTORE_PROPOSALS_DOC, snap)) return;
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
       writeJsonStorage(PROPOSALS_STORAGE_KEY, data);
@@ -1038,7 +1042,7 @@ function subscribeFirestoreChanges() {
   firestoreUnsubscribers.push(
     col.doc(FIRESTORE_CLIENTS_DOC).onSnapshot((snap) => {
       if (!snap.exists) return;
-      if (pendingSyncQueue.has(FIRESTORE_CLIENTS_DOC) && !snap.metadata?.hasPendingWrites) return;
+      if (shouldSkipFirestoreSnapshot(FIRESTORE_CLIENTS_DOC, snap)) return;
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
       writeJsonStorage(CLIENTS_STORAGE_KEY, data);
@@ -1055,7 +1059,7 @@ function subscribeFirestoreChanges() {
   firestoreUnsubscribers.push(
     col.doc(FIRESTORE_MACHINE_DB_DOC).onSnapshot((snap) => {
       if (!snap.exists) return;
-      if (pendingSyncQueue.has(FIRESTORE_MACHINE_DB_DOC) && !snap.metadata?.hasPendingWrites) return;
+      if (shouldSkipFirestoreSnapshot(FIRESTORE_MACHINE_DB_DOC, snap)) return;
       const data = snap.data()?.data;
       if (!data || typeof data !== "object" || Array.isArray(data)) return;
       writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizeMachineDatabase(data));
