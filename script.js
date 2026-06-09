@@ -732,7 +732,6 @@ function handleFirebaseConnectionError(message, error) {
   firestoreDb = null;
   firebaseSyncEnabled = false;
   clearFirestoreListeners();
-  updateFirebaseStatus(FIREBASE_STATUS_RECONNECTING);
   scheduleFirebaseReconnect();
 }
 
