@@ -216,8 +216,13 @@
             <h2>Custos de deslocamento</h2>
 
             <div class="grid">
+              <div class="field full">
+                <h3>Veículo de passeio / equipe</h3>
+                <small class="help-text">Informe a quantidade de viagens conforme a etapa da obra (preparação/montagem, concretagem e acabamento/cortes/PU).</small>
+              </div>
+
               <div class="field">
-                <label for="consumo">Consumo do veículo (km/l)</label>
+                <label for="consumo">Consumo do veículo de passeio (km/l)</label>
                 <input type="number" id="consumo" min="0" step="0.01" placeholder="0,00" />
               </div>
 
@@ -227,18 +232,53 @@
               </div>
 
               <div class="field">
-                <label for="pedagio">Pedágio (R$)</label>
+                <label for="pedagio">Pedágio por viagem do veículo de passeio (R$)</label>
                 <input type="number" id="pedagio" min="0" step="0.01" placeholder="0,00" />
               </div>
 
               <div class="field">
-                <label for="viagens">Quantidade de viagens</label>
+                <label for="viagens">Quantidade de viagens do veículo de passeio</label>
                 <input type="number" id="viagens" min="1" step="1" value="1" />
               </div>
 
               <div class="field">
-                <label for="quantidadeVeiculos">Quantidade de veículos</label>
+                <label for="quantidadeVeiculos">Quantidade de veículos de passeio</label>
                 <input type="number" id="quantidadeVeiculos" min="1" step="1" value="1" />
+              </div>
+
+              <div class="field full">
+                <h3>Caminhão / transporte de maquinário</h3>
+                <small class="help-text">Informe viagens do caminhão apenas nas etapas em que houver transporte de máquinas, como concretagem.</small>
+              </div>
+
+              <div class="field">
+                <label for="consumoCaminhao">Consumo do caminhão (km/l)</label>
+                <input type="number" id="consumoCaminhao" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="pedagioCaminhao">Pedágio por viagem do caminhão (R$)</label>
+                <input type="number" id="pedagioCaminhao" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="viagensCaminhao">Quantidade de viagens do caminhão</label>
+                <input type="number" id="viagensCaminhao" min="0" step="1" value="0" />
+              </div>
+
+              <div class="field">
+                <label for="quantidadeCaminhoes">Quantidade de caminhões</label>
+                <input type="number" id="quantidadeCaminhoes" min="0" step="1" value="0" />
+              </div>
+
+              <div class="field">
+                <label for="gastoLogisticoPessoal">Gasto logístico pessoal (R$)</label>
+                <input type="number" id="gastoLogisticoPessoal" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="gastoLogisticoMaquinario">Gasto logístico maquinário (R$)</label>
+                <input type="number" id="gastoLogisticoMaquinario" min="0" step="0.01" placeholder="0,00" />
               </div>
             </div>
           </section>
@@ -255,12 +295,20 @@
                 <input type="number" id="paramRendimentoFacas" min="0.01" step="0.01" />
               </div>
               <div class="field">
+                <label for="paramFacasPorJogo">Facas por jogo</label>
+                <input type="number" id="paramFacasPorJogo" min="1" step="1" />
+              </div>
+              <div class="field">
                 <label for="paramPrecoFaca">Preço por faca (R$)</label>
                 <input type="number" id="paramPrecoFaca" min="0" step="0.01" />
               </div>
               <div class="field">
                 <label for="paramRendimentoDisco">Rendimento por disco de flotagem (m²/unidade)</label>
                 <input type="number" id="paramRendimentoDisco" min="0.01" step="0.01" />
+              </div>
+              <div class="field">
+                <label for="paramDiscosPorJogo">Discos por jogo</label>
+                <input type="number" id="paramDiscosPorJogo" min="1" step="1" />
               </div>
               <div class="field">
                 <label for="paramPrecoDisco">Preço por disco de flotagem (R$)</label>
@@ -318,6 +366,61 @@
                 <input type="number" id="dias" min="0" step="1" placeholder="0" />
               </div>
 
+              <div class="field full">
+                <h3>Cronograma e equipe por atividade</h3>
+                <small class="help-text">Preencha para flexibilizar a equipe por etapa; se ficar vazio, o sistema mantém a regra geral de funcionários x dias.</small>
+              </div>
+
+              <div class="field">
+                <label for="diasPreparacao">Dias de preparação/montagem</label>
+                <input type="number" id="diasPreparacao" min="0" step="0.5" placeholder="0" />
+              </div>
+
+              <div class="field">
+                <label for="funcionariosPreparacao">Funcionários na preparação/montagem</label>
+                <input type="number" id="funcionariosPreparacao" min="0" step="1" placeholder="0" />
+              </div>
+
+              <div class="field">
+                <label for="diasConcretagem">Dias de concretagem</label>
+                <input type="number" id="diasConcretagem" min="0" step="0.5" placeholder="0" />
+              </div>
+
+              <div class="field">
+                <label for="funcionariosConcretagem">Funcionários na concretagem</label>
+                <input type="number" id="funcionariosConcretagem" min="0" step="1" placeholder="0" />
+              </div>
+
+              <div class="field">
+                <label for="diasAcabamento">Dias de acabamento/cortes/PU</label>
+                <input type="number" id="diasAcabamento" min="0" step="0.5" placeholder="0" />
+              </div>
+
+              <div class="field">
+                <label for="funcionariosAcabamento">Funcionários no acabamento</label>
+                <input type="number" id="funcionariosAcabamento" min="0" step="1" placeholder="0" />
+              </div>
+
+              <div class="field">
+                <label for="quantidadeDiaristas">Quantidade de diaristas</label>
+                <input type="number" id="quantidadeDiaristas" min="0" step="1" placeholder="0" />
+              </div>
+
+              <div class="field">
+                <label for="valorDiarista">Valor por diarista/dia (R$)</label>
+                <input type="number" id="valorDiarista" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="quantidadeHorasExtras">Quantidade de horas extras</label>
+                <input type="number" id="quantidadeHorasExtras" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="valorHoraExtra">Valor da hora extra (R$)</label>
+                <input type="number" id="valorHoraExtra" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
               <div class="field">
                 <label for="encargos">Encargos adicionais (R$)</label>
                 <input type="number" id="encargos" min="0" step="0.01" placeholder="0,00" />
@@ -339,6 +442,14 @@
             <h2>Outros custos e lucro</h2>
 
             <div class="grid">
+              <div class="field">
+                <label for="tipoContratacao">Tipo de contratação</label>
+                <select id="tipoContratacao">
+                  <option value="mao_de_obra">Apenas mão de obra</option>
+                  <option value="mao_de_obra_material">Mão de obra e material</option>
+                </select>
+              </div>
+
               <div class="field">
                 <label for="terraplanagemTotal">Terraplanagem (valor total R$)</label>
                 <input type="number" id="terraplanagemTotal" min="0" step="0.01" placeholder="0,00" />
@@ -374,6 +485,76 @@
                 <small id="infoCuraQuimica" class="help-text">Disponível apenas quando a cura química for selecionada.</small>
               </div>
 
+              <div class="field full">
+                <h3>Atividades e materiais de valor agregado</h3>
+                <small class="help-text">Informe valores por m² para mão de obra e materiais/fornecimento quando aplicável.</small>
+              </div>
+
+              <div class="field">
+                <label for="preparoLajeMaoObraM2">Preparação de laje/chaveamento - mão de obra (R$/m²)</label>
+                <input type="number" id="preparoLajeMaoObraM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="preparoLajeMaterialM2">Preparação de laje/chaveamento - material (R$/m²)</label>
+                <input type="number" id="preparoLajeMaterialM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="pisoIntertravadoMaoObraM2">Piso intertravado - mão de obra (R$/m²)</label>
+                <input type="number" id="pisoIntertravadoMaoObraM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="pisoIntertravadoMaterialM2">Piso intertravado - material (R$/m²)</label>
+                <input type="number" id="pisoIntertravadoMaterialM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="concretoM2">Fornecimento/aplicação de concreto (R$/m²)</label>
+                <input type="number" id="concretoM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="fibraM2">Fornecimento/aplicação de fibra (R$/m²)</label>
+                <input type="number" id="fibraM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="agregadoMineralM2">Fornecimento/aplicação de agregado mineral (R$/m²)</label>
+                <input type="number" id="agregadoMineralM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="endurecedorM2">Fornecimento/aplicação de endurecedor (R$/m²)</label>
+                <input type="number" id="endurecedorM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="juntaPuM2">Fornecimento/aplicação de junta de PU (R$/m²)</label>
+                <input type="number" id="juntaPuM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="labioPolimericoM2">Fornecimento/aplicação de lábio polimérico (R$/m²)</label>
+                <input type="number" id="labioPolimericoM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="pinturaEpoxiM2">Pintura à base de epóxi (R$/m²)</label>
+                <input type="number" id="pinturaEpoxiM2" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field">
+                <label for="servicoAdicionalValor">Outro serviço adicional (R$)</label>
+                <input type="number" id="servicoAdicionalValor" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field full">
+                <label for="servicoAdicionalDescricao">Descrição do serviço adicional</label>
+                <input type="text" id="servicoAdicionalDescricao" placeholder="Ex.: Nivelamento e polimento, piso sarrafeado, colocação de malha" />
+              </div>
+
               <div class="field">
                 <label for="equipamentosTipo">Equipamentos próprios ou alugados?</label>
                 <select id="equipamentosTipo">
@@ -393,6 +574,16 @@
               </div>
 
               <div class="field">
+                <label for="locacaoManualValor">Locação externa manual (R$)</label>
+                <input type="number" id="locacaoManualValor" min="0" step="0.01" placeholder="0,00" />
+              </div>
+
+              <div class="field full">
+                <label for="locacaoManualDescricao">Descrição da locação externa</label>
+                <input type="text" id="locacaoManualDescricao" placeholder="Ex.: Bobcat, caçambas, marteletes, furadeiras ou ferramentas de demolição" />
+              </div>
+
+              <div class="field">
                 <label for="outrosCustos">Outros custos (R$)</label>
                 <input type="number" id="outrosCustos" min="0" step="0.01" placeholder="0,00" />
               </div>
@@ -405,6 +596,7 @@
               <div class="field">
                 <label for="impostoPercentual">Imposto (%)</label>
                 <select id="impostoPercentual">
+                  <option value="0">0,0% (sem nota fiscal)</option>
                   <option value="1">1,0%</option>
                   <option value="2">2,0%</option>
                   <option value="3">3,0%</option>
@@ -539,7 +731,28 @@
               </section>
 
               <section class="proposta-secao">
-                <h4>VALORES</h4>
+                <h4>SERVIÇOS INCLUSOS</h4>
+                <p><strong>Contratação:</strong> <span id="prevTipoContratacao">Apenas mão de obra</span></p>
+                <div class="table-wrap proposal-table-wrap">
+                  <table class="data-table proposal-table proposal-services-table">
+                    <thead>
+                      <tr>
+                        <th>Serviço</th>
+                        <th>Valor por m²</th>
+                        <th>Valor total</th>
+                      </tr>
+                    </thead>
+                    <tbody id="prevServicosDetalhados">
+                      <tr>
+                        <td colspan="3">Nenhum serviço adicional informado.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section class="proposta-secao">
+                <h4>RESUMO DO ORÇAMENTO</h4>
                 <div class="table-wrap proposal-table-wrap">
                   <table class="data-table proposal-table">
                     <thead>
@@ -598,6 +811,7 @@
 
                   <div class="resultado-item">
                     <span>Funcionários considerados</span>
+                    <small class="help-text">No cronograma por atividade, mostra o pico de equipe e o total de funcionários-dia.</small>
                     <strong id="resFuncionarios">0</strong>
                   </div>
 
@@ -647,7 +861,7 @@
                   </div>
 
                   <div class="resultado-item">
-                    <span>Outros custos</span>
+                    <span>Outros custos, locações e serviços</span>
                     <strong id="resOutros">R$ 0,00</strong>
                   </div>
 

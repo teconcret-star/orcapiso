@@ -10,6 +10,8 @@ const LEGACY_DRAFT_STORAGE_KEY = "proposta_rascunho_v1";
 const DRAFT_STORAGE_KEY_PREFIX = "proposta_rascunho_usuario_v1_";
 const WORKER_MODE_AUTO = "auto";
 const WORKER_MODE_MANUAL = "manual";
+const CONTRACT_TYPE_LABOR = "mao_de_obra";
+const CONTRACT_TYPE_LABOR_MATERIAL = "mao_de_obra_material";
 const ROLE_ADMIN = "admin";
 const ROLE_SELLER = "seller";
 const DEFAULT_FILIAL = "Matriz";
@@ -76,8 +78,10 @@ const EQUIPAMENTOS_ALUGADOS_OPCOES = [
 ];
 const DEFAULT_MACHINE_DATABASE = {
   rendimentoFacasM2: 300,
+  facasPorJogo: 4,
   precoFaca: 180,
   rendimentoDiscoM2: 500,
+  discosPorJogo: 1,
   precoDisco: 220,
   consumoDuplaLitrosM2: 0.11,
   consumoSimplesLitrosM2: 0.08,
@@ -93,8 +97,10 @@ const DEFAULT_MACHINE_DATABASE = {
 const MACHINE_DATABASE_PRESETS = {
   marketBestPractices: {
     rendimentoFacasM2: 280,
+    facasPorJogo: 4,
     precoFaca: 195,
     rendimentoDiscoM2: 470,
+    discosPorJogo: 1,
     precoDisco: 235,
     consumoDuplaLitrosM2: 0.12,
     consumoSimplesLitrosM2: 0.085,
@@ -214,6 +220,27 @@ function getCssVarColor(name, fallback) {
 
 function formatDate(value = new Date()) {
   return new Date(value).toLocaleDateString("pt-BR");
+}
+
+function toPositiveIntegerOrFallback(value, fallback = 0) {
+  const number = Math.round(toNumber(value));
+  return number > 0 ? number : fallback;
+}
+
+function pluralize(count, singular, plural) {
+  return Number(count) === 1 ? singular : plural;
+}
+
+function formatConsumableSetsAndItems(sets, items, itemSingular, itemPlural) {
+  return `${sets} ${pluralize(sets, "jogo", "jogos")} / ${items} ${pluralize(items, itemSingular, itemPlural)}`;
+}
+
+function getTipoContratacaoLabel(value) {
+  const labels = {
+    [CONTRACT_TYPE_LABOR]: "Apenas mão de obra",
+    [CONTRACT_TYPE_LABOR_MATERIAL]: "Mão de obra e material"
+  };
+  return labels[value] || labels[CONTRACT_TYPE_LABOR];
 }
 
 function createUniqueId() {
@@ -1448,18 +1475,22 @@ function normalizeMachineDatabase(data = {}) {
   const rendimentoFacasM2 = toNumber(data.rendimentoFacasM2) > 0
     ? toNumber(data.rendimentoFacasM2)
     : DEFAULT_MACHINE_DATABASE.rendimentoFacasM2;
+  const facasPorJogo = toPositiveIntegerOrFallback(data.facasPorJogo, DEFAULT_MACHINE_DATABASE.facasPorJogo);
   const precoFaca = Math.max(0, toNumber(data.precoFaca));
   const rendimentoDiscoM2 = toNumber(data.rendimentoDiscoM2) > 0
     ? toNumber(data.rendimentoDiscoM2)
     : DEFAULT_MACHINE_DATABASE.rendimentoDiscoM2;
+  const discosPorJogo = toPositiveIntegerOrFallback(data.discosPorJogo, DEFAULT_MACHINE_DATABASE.discosPorJogo);
   const precoDisco = Math.max(0, toNumber(data.precoDisco));
   const consumoDuplaLitrosM2 = Math.max(0, toNumber(data.consumoDuplaLitrosM2));
   const consumoSimplesLitrosM2 = Math.max(0, toNumber(data.consumoSimplesLitrosM2));
   const consumoCorteLitrosM2 = Math.max(0, toNumber(data.consumoCorteLitrosM2));
   return {
     rendimentoFacasM2,
+    facasPorJogo,
     precoFaca,
     rendimentoDiscoM2,
+    discosPorJogo,
     precoDisco,
     consumoDuplaLitrosM2,
     consumoSimplesLitrosM2,
@@ -1486,8 +1517,10 @@ function applyMachineDatabaseToForm() {
 function applyMachineDatabaseValuesToForm(data) {
   const db = normalizeMachineDatabase(data);
   $("paramRendimentoFacas").value = String(db.rendimentoFacasM2);
+  $("paramFacasPorJogo").value = String(db.facasPorJogo);
   $("paramPrecoFaca").value = String(db.precoFaca);
   $("paramRendimentoDisco").value = String(db.rendimentoDiscoM2);
+  $("paramDiscosPorJogo").value = String(db.discosPorJogo);
   $("paramPrecoDisco").value = String(db.precoDisco);
   $("paramConsumoMaquinaDupla").value = String(db.consumoDuplaLitrosM2);
   $("paramConsumoMaquinaSimples").value = String(db.consumoSimplesLitrosM2);
@@ -1515,8 +1548,10 @@ function aplicarEstimativaMercadoPreCadastrada() {
 function readMachineDatabaseFromForm() {
   return {
     rendimentoFacasM2: toNumber($("paramRendimentoFacas").value),
+    facasPorJogo: toPositiveIntegerOrFallback($("paramFacasPorJogo").value, DEFAULT_MACHINE_DATABASE.facasPorJogo),
     precoFaca: toNumber($("paramPrecoFaca").value),
     rendimentoDiscoM2: toNumber($("paramRendimentoDisco").value),
+    discosPorJogo: toPositiveIntegerOrFallback($("paramDiscosPorJogo").value, DEFAULT_MACHINE_DATABASE.discosPorJogo),
     precoDisco: toNumber($("paramPrecoDisco").value),
     consumoDuplaLitrosM2: toNumber($("paramConsumoMaquinaDupla").value),
     consumoSimplesLitrosM2: toNumber($("paramConsumoMaquinaSimples").value),
@@ -1921,10 +1956,26 @@ function proposalFieldsSnapshot() {
     "precoCombustivel",
     "pedagio",
     "quantidadeVeiculos",
+    "consumoCaminhao",
+    "pedagioCaminhao",
+    "viagensCaminhao",
+    "quantidadeCaminhoes",
+    "gastoLogisticoPessoal",
+    "gastoLogisticoMaquinario",
     "modoFuncionarios",
     "funcionarios",
     "valorDia",
     "dias",
+    "diasPreparacao",
+    "funcionariosPreparacao",
+    "diasConcretagem",
+    "funcionariosConcretagem",
+    "diasAcabamento",
+    "funcionariosAcabamento",
+    "quantidadeDiaristas",
+    "valorDiarista",
+    "quantidadeHorasExtras",
+    "valorHoraExtra",
     "encargos",
     "alimentacaoFuncionario",
     "hotelFuncionario",
@@ -1933,9 +1984,25 @@ function proposalFieldsSnapshot() {
     "valorTelaM2",
     "curaQuimica",
     "valorCuraM2",
+    "tipoContratacao",
+    "preparoLajeMaoObraM2",
+    "preparoLajeMaterialM2",
+    "pisoIntertravadoMaoObraM2",
+    "pisoIntertravadoMaterialM2",
+    "concretoM2",
+    "fibraM2",
+    "agregadoMineralM2",
+    "endurecedorM2",
+    "juntaPuM2",
+    "labioPolimericoM2",
+    "pinturaEpoxiM2",
+    "servicoAdicionalValor",
+    "servicoAdicionalDescricao",
     "equipamentosTipo",
     "equipamentosAlugadosItems",
     "equipamentosAlugadosObservacao",
+    "locacaoManualValor",
+    "locacaoManualDescricao",
     "outrosCustos",
     "lucro",
     "impostoPercentual",
@@ -2721,6 +2788,44 @@ function limparPerfil() {
   showToast("Campos do perfil limpos.");
 }
 
+function pushServiceLine(lines, label, total, metragem, { includeZero = false } = {}) {
+  const normalizedTotal = Math.max(0, toNumber(total));
+  if (!includeZero && normalizedTotal === 0) return;
+  lines.push({
+    label,
+    total: normalizedTotal,
+    valorM2: metragem > 0 ? normalizedTotal / metragem : 0
+  });
+}
+
+function renderServicosDetalhados(lines) {
+  const tbody = $("prevServicosDetalhados");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  if (!lines.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 3;
+    cell.textContent = "Serviços conforme escopo informado.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  lines.forEach((item) => {
+    const row = document.createElement("tr");
+    [item.label, formatMoney(item.valorM2), formatMoney(item.total)].forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.appendChild(cell);
+    });
+    fragment.appendChild(row);
+  });
+  tbody.appendChild(fragment);
+}
+
 function calcularOrcamento() {
   const cliente = $("cliente").value.trim() || "-";
   const obra = $("obra").value.trim() || "-";
@@ -2735,8 +2840,24 @@ function calcularOrcamento() {
   const viagens = toNumber($("viagens").value);
   const quantidadeVeiculosDigitada = parseInt($("quantidadeVeiculos").value, 10);
   const quantidadeVeiculos = quantidadeVeiculosDigitada > 0 ? quantidadeVeiculosDigitada : 1;
+  const consumoCaminhao = toNumber($("consumoCaminhao").value);
+  const pedagioCaminhao = toNumber($("pedagioCaminhao").value);
+  const viagensCaminhao = toNumber($("viagensCaminhao").value);
+  const quantidadeCaminhoes = toPositiveIntegerOrFallback($("quantidadeCaminhoes").value, 0);
+  const gastoLogisticoPessoal = toNumber($("gastoLogisticoPessoal").value);
+  const gastoLogisticoMaquinario = toNumber($("gastoLogisticoMaquinario").value);
   const valorDia = toNumber($("valorDia").value);
   const dias = toNumber($("dias").value);
+  const diasPreparacao = toNumber($("diasPreparacao").value);
+  const funcionariosPreparacao = toPositiveIntegerOrFallback($("funcionariosPreparacao").value, 0);
+  const diasConcretagem = toNumber($("diasConcretagem").value);
+  const funcionariosConcretagem = toPositiveIntegerOrFallback($("funcionariosConcretagem").value, 0);
+  const diasAcabamento = toNumber($("diasAcabamento").value);
+  const funcionariosAcabamento = toPositiveIntegerOrFallback($("funcionariosAcabamento").value, 0);
+  const quantidadeDiaristas = toPositiveIntegerOrFallback($("quantidadeDiaristas").value, 0);
+  const valorDiarista = toNumber($("valorDiarista").value);
+  const quantidadeHorasExtras = toNumber($("quantidadeHorasExtras").value);
+  const valorHoraExtra = toNumber($("valorHoraExtra").value);
   const encargos = toNumber($("encargos").value);
   const alimentacaoFuncionario = toNumber($("alimentacaoFuncionario").value);
   const hotelFuncionario = toNumber($("hotelFuncionario").value);
@@ -2756,6 +2877,22 @@ function calcularOrcamento() {
   const custoEquipamentosAlugados = equipamentosAlugados
     .reduce((total, item) => total + item.totalItem, 0);
   const observacaoEquipamentosAlugados = $("equipamentosAlugadosObservacao").value.trim();
+  const locacaoManualValor = toNumber($("locacaoManualValor").value);
+  const locacaoManualDescricao = $("locacaoManualDescricao").value.trim();
+  const tipoContratacao = $("tipoContratacao").value;
+  const preparoLajeMaoObraM2 = toNumber($("preparoLajeMaoObraM2").value);
+  const preparoLajeMaterialM2 = toNumber($("preparoLajeMaterialM2").value);
+  const pisoIntertravadoMaoObraM2 = toNumber($("pisoIntertravadoMaoObraM2").value);
+  const pisoIntertravadoMaterialM2 = toNumber($("pisoIntertravadoMaterialM2").value);
+  const concretoM2 = toNumber($("concretoM2").value);
+  const fibraM2 = toNumber($("fibraM2").value);
+  const agregadoMineralM2 = toNumber($("agregadoMineralM2").value);
+  const endurecedorM2 = toNumber($("endurecedorM2").value);
+  const juntaPuM2 = toNumber($("juntaPuM2").value);
+  const labioPolimericoM2 = toNumber($("labioPolimericoM2").value);
+  const pinturaEpoxiM2 = toNumber($("pinturaEpoxiM2").value);
+  const servicoAdicionalValor = toNumber($("servicoAdicionalValor").value);
+  const servicoAdicionalDescricao = $("servicoAdicionalDescricao").value.trim();
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
   const impostoPercentual = toNumber($("impostoPercentual").value);
@@ -2779,12 +2916,40 @@ function calcularOrcamento() {
   const distanciaTotal = distancia * multiplicadorViagens;
   const custoCombustivel = consumo > 0 ? ((distanciaTotal / consumo) * precoCombustivel) * quantidadeVeiculos : 0;
   const custoPedagio = pedagio * multiplicadorViagens * quantidadeVeiculos;
-  const custoDeslocamento = custoCombustivel + custoPedagio;
-  const custoMaoDeObra = funcionariosSelecionados * valorDia * dias;
-  const custoAlimentacao = funcionariosSelecionados * alimentacaoFuncionario * dias;
-  const custoHotel = funcionariosSelecionados * hotelFuncionario * dias;
-  const facasEstimadas = metragem > 0 ? Math.ceil(metragem / machineDb.rendimentoFacasM2) : 0;
-  const discosEstimados = metragem > 0 ? Math.ceil(metragem / machineDb.rendimentoDiscoM2) : 0;
+  const multiplicadorViagensCaminhao = viagensCaminhao;
+  const distanciaTotalCaminhao = distancia * multiplicadorViagensCaminhao;
+  const custoCombustivelCaminhao = consumoCaminhao > 0
+    ? ((distanciaTotalCaminhao / consumoCaminhao) * precoCombustivel) * quantidadeCaminhoes
+    : 0;
+  const custoPedagioCaminhao = pedagioCaminhao * multiplicadorViagensCaminhao * quantidadeCaminhoes;
+  const custoDeslocamento =
+    custoCombustivel
+    + custoPedagio
+    + custoCombustivelCaminhao
+    + custoPedagioCaminhao
+    + gastoLogisticoPessoal
+    + gastoLogisticoMaquinario;
+  const atividadePersonDays =
+    (funcionariosPreparacao * diasPreparacao)
+    + (funcionariosConcretagem * diasConcretagem)
+    + (funcionariosAcabamento * diasAcabamento);
+  const usaCronogramaAtividades = atividadePersonDays > 0;
+  const funcionariosPico = usaCronogramaAtividades
+    ? Math.max(funcionariosPreparacao, funcionariosConcretagem, funcionariosAcabamento)
+    : funcionariosSelecionados;
+  const funcionarioDias = usaCronogramaAtividades ? atividadePersonDays : funcionariosSelecionados * dias;
+  const diaristaDias = quantidadeDiaristas * dias;
+  const totalPessoaDias = funcionarioDias + diaristaDias;
+  const custoMaoDeObraFuncionarios = funcionarioDias * valorDia;
+  const custoDiaristas = diaristaDias * valorDiarista;
+  const custoHorasExtras = quantidadeHorasExtras * valorHoraExtra;
+  const custoMaoDeObra = custoMaoDeObraFuncionarios + custoDiaristas + custoHorasExtras;
+  const custoAlimentacao = totalPessoaDias * alimentacaoFuncionario;
+  const custoHotel = totalPessoaDias * hotelFuncionario;
+  const jogosFacasEstimados = metragem > 0 ? Math.ceil(metragem / machineDb.rendimentoFacasM2) : 0;
+  const jogosDiscosEstimados = metragem > 0 ? Math.ceil(metragem / machineDb.rendimentoDiscoM2) : 0;
+  const facasEstimadas = jogosFacasEstimados * machineDb.facasPorJogo;
+  const discosEstimados = jogosDiscosEstimados * machineDb.discosPorJogo;
   const custoFacas = facasEstimadas * machineDb.precoFaca;
   const custoDiscos = discosEstimados * machineDb.precoDisco;
   const consumoTotalMaquinasPorM2 =
@@ -2793,6 +2958,26 @@ function calcularOrcamento() {
     + machineDb.consumoCorteLitrosM2;
   const litrosCombustivelMaquinas = metragem * consumoTotalMaquinasPorM2;
   const custoCombustivelMaquinas = litrosCombustivelMaquinas * precoCombustivel;
+  const custoPreparoLaje = metragem * (preparoLajeMaoObraM2 + preparoLajeMaterialM2);
+  const custoPisoIntertravado = metragem * (pisoIntertravadoMaoObraM2 + pisoIntertravadoMaterialM2);
+  const custoConcreto = metragem * concretoM2;
+  const custoFibra = metragem * fibraM2;
+  const custoAgregadoMineral = metragem * agregadoMineralM2;
+  const custoEndurecedor = metragem * endurecedorM2;
+  const custoJuntaPu = metragem * juntaPuM2;
+  const custoLabioPolimerico = metragem * labioPolimericoM2;
+  const custoPinturaEpoxi = metragem * pinturaEpoxiM2;
+  const custoAtividadesMateriais =
+    custoPreparoLaje
+    + custoPisoIntertravado
+    + custoConcreto
+    + custoFibra
+    + custoAgregadoMineral
+    + custoEndurecedor
+    + custoJuntaPu
+    + custoLabioPolimerico
+    + custoPinturaEpoxi
+    + servicoAdicionalValor;
   const subtotal =
     custoDeslocamento
     + custoMaoDeObra
@@ -2806,6 +2991,8 @@ function calcularOrcamento() {
     + custoTelaTotal
     + custoEquipamentosAlugados
     + custoCuraQuimica
+    + locacaoManualValor
+    + custoAtividadesMateriais
     + outrosCustos;
   const valorLucro = subtotal * (lucroPercentual / 100);
   const totalComLucro = subtotal + valorLucro;
@@ -2828,17 +3015,19 @@ function calcularOrcamento() {
   $("resPedagio").textContent = formatMoney(custoPedagio);
   $("resDeslocamento").textContent = formatMoney(custoDeslocamento);
   $("resMaoDeObra").textContent = formatMoney(custoMaoDeObra);
-  $("resFuncionarios").textContent = String(funcionariosSelecionados);
+  $("resFuncionarios").textContent = usaCronogramaAtividades
+    ? `${funcionariosPico} (pico) / ${formatNumber(funcionarioDias)} ${pluralize(funcionarioDias, "funcionário-dia", "funcionários-dia")}`
+    : String(funcionariosSelecionados);
   $("resAlimentacao").textContent = formatMoney(custoAlimentacao);
   $("resHotel").textContent = formatMoney(custoHotel);
-  $("resFacasQtd").textContent = String(facasEstimadas);
+  $("resFacasQtd").textContent = formatConsumableSetsAndItems(jogosFacasEstimados, facasEstimadas, "faca", "facas");
   $("resFacasCusto").textContent = formatMoney(custoFacas);
-  $("resDiscosQtd").textContent = String(discosEstimados);
+  $("resDiscosQtd").textContent = formatConsumableSetsAndItems(jogosDiscosEstimados, discosEstimados, "disco", "discos");
   $("resDiscosCusto").textContent = formatMoney(custoDiscos);
   $("resCombustivelMaquinasLitros").textContent = `${formatNumber(litrosCombustivelMaquinas)} L`;
   $("resCombustivelMaquinas").textContent = formatMoney(custoCombustivelMaquinas);
   $("resEncargos").textContent = formatMoney(encargos);
-  $("resOutros").textContent = formatMoney(outrosCustos);
+  $("resOutros").textContent = formatMoney(outrosCustos + locacaoManualValor + custoAtividadesMateriais);
   $("resEquipamentosAlugados").textContent = formatMoney(custoEquipamentosAlugados);
   $("resCuraQuimica").textContent = formatMoney(custoCuraQuimica);
   $("resSubtotal").textContent = formatMoney(subtotal);
@@ -2862,6 +3051,31 @@ function calcularOrcamento() {
   $("prevTextoPadrao").textContent = getTextoPadraoProposta();
   $("prevObservacoes").textContent = `Observações: ${$("propostaObservacoes").value.trim() || "-"}`;
   $("prevVendedorNome").textContent = profile.nomeVendedor || currentUser?.name || "-";
+  $("prevTipoContratacao").textContent = getTipoContratacaoLabel(tipoContratacao);
+  const servicosDetalhados = [];
+  pushServiceLine(servicosDetalhados, "Deslocamento e logística", custoDeslocamento, metragem);
+  pushServiceLine(servicosDetalhados, "Mão de obra de execução", custoMaoDeObra, metragem);
+  pushServiceLine(servicosDetalhados, "Alimentação e estadia da equipe", custoAlimentacao + custoHotel, metragem);
+  pushServiceLine(servicosDetalhados, `Facas de acabamento (${formatConsumableSetsAndItems(jogosFacasEstimados, facasEstimadas, "faca", "facas")})`, custoFacas, metragem);
+  pushServiceLine(servicosDetalhados, `Discos de flotagem (${formatConsumableSetsAndItems(jogosDiscosEstimados, discosEstimados, "disco", "discos")})`, custoDiscos, metragem);
+  pushServiceLine(servicosDetalhados, "Combustível das máquinas", custoCombustivelMaquinas, metragem);
+  pushServiceLine(servicosDetalhados, "Terraplanagem", terraplanagemTotal, metragem);
+  pushServiceLine(servicosDetalhados, "Colocação de malha de aço/tela", custoTelaTotal, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de cura química", custoCuraQuimica, metragem);
+  pushServiceLine(servicosDetalhados, "Preparação de laje (chaveamento)", custoPreparoLaje, metragem);
+  pushServiceLine(servicosDetalhados, "Colocação de pisos intertravados", custoPisoIntertravado, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de concreto", custoConcreto, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de fibra", custoFibra, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de agregado mineral", custoAgregadoMineral, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de endurecedor", custoEndurecedor, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de junta de PU", custoJuntaPu, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de lábio polimérico", custoLabioPolimerico, metragem);
+  pushServiceLine(servicosDetalhados, "Pintura à base de epóxi", custoPinturaEpoxi, metragem);
+  pushServiceLine(servicosDetalhados, locacaoManualDescricao || "Locação externa de máquinas/equipamentos", locacaoManualValor, metragem);
+  pushServiceLine(servicosDetalhados, servicoAdicionalDescricao || "Serviço adicional", servicoAdicionalValor, metragem);
+  pushServiceLine(servicosDetalhados, "Encargos adicionais", encargos, metragem);
+  pushServiceLine(servicosDetalhados, "Outros custos", outrosCustos, metragem);
+  renderServicosDetalhados(servicosDetalhados);
   atualizarPreviaPerfil();
 
   return {
@@ -2870,7 +3084,7 @@ function calcularOrcamento() {
     metragem,
     total,
     valorM2,
-    funcionariosSelecionados
+    funcionariosPico
   };
 }
 
@@ -3159,11 +3373,28 @@ function limparCampos() {
     "consumo",
     "precoCombustivel",
     "pedagio",
+    "viagens",
     "quantidadeVeiculos",
+    "consumoCaminhao",
+    "pedagioCaminhao",
+    "viagensCaminhao",
+    "quantidadeCaminhoes",
+    "gastoLogisticoPessoal",
+    "gastoLogisticoMaquinario",
     "modoFuncionarios",
     "funcionarios",
     "valorDia",
     "dias",
+    "diasPreparacao",
+    "funcionariosPreparacao",
+    "diasConcretagem",
+    "funcionariosConcretagem",
+    "diasAcabamento",
+    "funcionariosAcabamento",
+    "quantidadeDiaristas",
+    "valorDiarista",
+    "quantidadeHorasExtras",
+    "valorHoraExtra",
     "encargos",
     "alimentacaoFuncionario",
     "hotelFuncionario",
@@ -3172,9 +3403,25 @@ function limparCampos() {
     "valorTelaM2",
     "curaQuimica",
     "valorCuraM2",
+    "tipoContratacao",
+    "preparoLajeMaoObraM2",
+    "preparoLajeMaterialM2",
+    "pisoIntertravadoMaoObraM2",
+    "pisoIntertravadoMaterialM2",
+    "concretoM2",
+    "fibraM2",
+    "agregadoMineralM2",
+    "endurecedorM2",
+    "juntaPuM2",
+    "labioPolimericoM2",
+    "pinturaEpoxiM2",
+    "servicoAdicionalValor",
+    "servicoAdicionalDescricao",
     "equipamentosTipo",
     "equipamentosAlugadosItems",
     "equipamentosAlugadosObservacao",
+    "locacaoManualValor",
+    "locacaoManualDescricao",
     "outrosCustos",
     "lucro",
     "impostoPercentual",
@@ -3197,9 +3444,12 @@ function limparCampos() {
 
   $("viagens").value = 1;
   $("quantidadeVeiculos").value = 1;
+  $("viagensCaminhao").value = 0;
+  $("quantidadeCaminhoes").value = 0;
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
   $("pisoTela").value = "sem_tela";
   $("curaQuimica").value = "sem_cura";
+  $("tipoContratacao").value = CONTRACT_TYPE_LABOR;
   $("equipamentosTipo").value = EQUIPAMENTOS_TIPO_PROPRIOS;
   $("impostoPercentual").value = DEFAULT_IMPOSTO_PERCENTUAL;
   $("propostaStatus").value = PROPOSAL_STATUS_EM_ANDAMENTO;
@@ -3978,15 +4228,47 @@ function bindStaticEvents() {
     "pedagio",
     "quantidadeVeiculos",
     "viagens",
+    "consumoCaminhao",
+    "pedagioCaminhao",
+    "viagensCaminhao",
+    "quantidadeCaminhoes",
+    "gastoLogisticoPessoal",
+    "gastoLogisticoMaquinario",
     "valorDia",
     "dias",
+    "diasPreparacao",
+    "funcionariosPreparacao",
+    "diasConcretagem",
+    "funcionariosConcretagem",
+    "diasAcabamento",
+    "funcionariosAcabamento",
+    "quantidadeDiaristas",
+    "valorDiarista",
+    "quantidadeHorasExtras",
+    "valorHoraExtra",
     "encargos",
     "alimentacaoFuncionario",
     "hotelFuncionario",
     "terraplanagemTotal",
     "valorTelaM2",
     "valorCuraM2",
+    "tipoContratacao",
+    "preparoLajeMaoObraM2",
+    "preparoLajeMaterialM2",
+    "pisoIntertravadoMaoObraM2",
+    "pisoIntertravadoMaterialM2",
+    "concretoM2",
+    "fibraM2",
+    "agregadoMineralM2",
+    "endurecedorM2",
+    "juntaPuM2",
+    "labioPolimericoM2",
+    "pinturaEpoxiM2",
+    "servicoAdicionalValor",
+    "servicoAdicionalDescricao",
     "equipamentosAlugadosObservacao",
+    "locacaoManualValor",
+    "locacaoManualDescricao",
     "outrosCustos",
     "lucro",
     "impostoPercentual",
