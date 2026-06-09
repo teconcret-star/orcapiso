@@ -1333,7 +1333,7 @@ function createEquipamentoAlugadoItem(item = {}) {
       <label for="${totalId}">Total do item</label>
       <input id="${totalId}" type="text" class="equipamento-alugado-total" value="${formatMoney(0)}" readonly />
     </div>
-    <button type="button" class="btn btn-danger btn-inline" data-action="remover-equipamento" aria-label="Excluir item de equipamento alugado">Excluir</button>
+    <button type="button" class="btn btn-danger btn-inline" data-action="excluir-equipamento" aria-label="Excluir item de equipamento alugado">Excluir</button>
   `;
   if (diaria > 0) {
     row.querySelector(".equipamento-alugado-diaria").value = diaria;
@@ -4164,7 +4164,7 @@ function bindStaticEvents() {
   });
 
   $("equipamentosAlugadosList").addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-action='remover-equipamento']");
+    const button = event.target.closest("button[data-action='excluir-equipamento']");
     if (!button) return;
     const row = button.closest(".equipamento-item");
     if (!row) return;
