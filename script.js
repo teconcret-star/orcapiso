@@ -610,6 +610,10 @@ function canDeleteUser(user, actor = currentUser) {
   return false;
 }
 
+function shouldPreserveUsersCache(normalizedUsers) {
+  return Boolean(currentUserId && currentUser && !normalizedUsers.length && usersCache.length);
+}
+
 function initializeFirebaseConnection() {
   if (!window.firebase?.firestore) {
     console.warn("[Firebase Init] Firebase Firestore SDK não carregado");
@@ -844,7 +848,7 @@ function subscribeFirestoreChanges() {
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
       const normalizedUsers = normalizeUsersForStorage(data);
-      if (currentUserId && currentUser && !normalizedUsers.length && usersCache.length) {
+      if (shouldPreserveUsersCache(normalizedUsers)) {
         console.warn("Lista de usuários vazia ignorada para preservar a sessão ativa.");
         return;
       }
@@ -966,7 +970,7 @@ async function bootstrapStorageFromFirebase() {
     // Initialize or restore users and ensure Firestore document exists
     if (users && Array.isArray(users)) {
       const normalizedUsers = normalizeUsersForStorage(users);
-      if (currentUserId && currentUser && !normalizedUsers.length && usersCache.length) {
+      if (shouldPreserveUsersCache(normalizedUsers)) {
         console.warn("Lista de usuários vazia ignorada para preservar a sessão ativa.");
       } else {
         usersCache = normalizedUsers;
@@ -1019,21 +1023,18 @@ async function bootstrapStorageFromFirebase() {
     let normalizedMachineDb;
     if (machineDb && !Array.isArray(machineDb) && typeof machineDb === "object") {
       normalizedMachineDb = normalizeMachineDatabase(machineDb);
-      writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
     } else {
       const legacyMachineDb = readLegacyJsonStorage(MACHINE_DB_STORAGE_KEY, null);
       const currentMachineDb = readJsonStorage(MACHINE_DB_STORAGE_KEY, null);
       if (legacyMachineDb && !Array.isArray(legacyMachineDb) && typeof legacyMachineDb === "object") {
         normalizedMachineDb = normalizeMachineDatabase(legacyMachineDb);
-        writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
       } else if (currentMachineDb && !Array.isArray(currentMachineDb) && typeof currentMachineDb === "object") {
         normalizedMachineDb = normalizeMachineDatabase(currentMachineDb);
-        writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
       } else {
         normalizedMachineDb = DEFAULT_MACHINE_DATABASE;
-        writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
       }
     }
+    writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
     removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
 
     // Sync all data to Firestore in parallel to ensure documents exist
@@ -1641,7 +1642,7 @@ function refreshCurrentUser() {
 
   const storedUser = getCurrentUserFromStorage();
   if (!storedUser || !storedUser.active) {
-    if (!storedUser && currentUser && !getUsers().length) {
+    if (!storedUser && currentUser && !firebaseSyncEnabled) {
       return currentUser;
     }
     handleLogout({ silent: true });
