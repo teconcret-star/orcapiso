@@ -17,14 +17,13 @@ const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "password2026";
 const PASSWORD_ITERATIONS = 120000;
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDPBCd-rC-Y9L9DIzF0gW20G_B_Ydn5RKM",
-  authDomain: "orcapiso.firebaseapp.com",
-  databaseURL: "https://orcapiso-default-rtdb.firebaseio.com",
-  projectId: "orcapiso",
-  storageBucket: "orcapiso.firebasestorage.app",
-  messagingSenderId: "966600923508",
-  appId: "1:966600923508:web:5f53da4ba834b88a5b3421",
-  measurementId: "G-Z6QWZ7LWGG"
+apiKey: "AIzaSyC8IRsEWgUZEY6AwdOWE8ZCVPorPuObdfA",
+  authDomain: "solomix-56b7b.firebaseapp.com",
+  projectId: "solomix-56b7b",
+  storageBucket: "solomix-56b7b.firebasestorage.app",
+  messagingSenderId: "851808503220",
+  appId: "1:851808503220:web:f1d632e4405331385d1ee1",
+  measurementId: "G-8PVVFM0KRX"
 };
 const FIRESTORE_COLLECTION = "orcamentoPiso";
 const FIRESTORE_USERS_DOC = "users";
