@@ -1488,9 +1488,34 @@ function getSession() {
   return readJsonStorage(SESSION_STORAGE_KEY, null);
 }
 
+function normalizeSessionUserId(userId) {
+  const normalized = String(userId || "").trim();
+  return /^[A-Za-z0-9_-]+$/.test(normalized) ? normalized : "";
+}
+
+function writeBrowserSession(session) {
+  try {
+    if (!window.localStorage) throw new Error("localStorage unavailable");
+    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    return true;
+  } catch (error) {
+    console.warn("Falha ao persistir sessão no navegador:", error);
+    showToast("Sessão ativa apenas nesta aba. Ao recarregar, será necessário entrar novamente.", true);
+    return false;
+  }
+}
+
 function saveSession(userId) {
+  const sessionUserId = normalizeSessionUserId(userId);
+  if (!sessionUserId) return false;
+
   removeLegacyStorageItem(SESSION_STORAGE_KEY);
-  return writeJsonStorage(SESSION_STORAGE_KEY, { userId });
+  const session = { userId: sessionUserId };
+  const success = writeJsonStorage(SESSION_STORAGE_KEY, session);
+  if (!success) return false;
+
+  const browserSuccess = writeBrowserSession(session);
+  return browserSuccess;
 }
 
 function clearSession() {
