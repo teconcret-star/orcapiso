@@ -1489,8 +1489,14 @@ function getSession() {
 }
 
 function saveSession(userId) {
-  removeLegacyStorageItem(SESSION_STORAGE_KEY);
-  return writeJsonStorage(SESSION_STORAGE_KEY, { userId });
+  const session = { userId };
+  const success = writeJsonStorage(SESSION_STORAGE_KEY, session);
+  try {
+    window.localStorage?.setItem?.(SESSION_STORAGE_KEY, JSON.stringify(session));
+  } catch {
+    showToast("Sessão ativa apenas nesta aba. Ao recarregar, será necessário entrar novamente.", true);
+  }
+  return success;
 }
 
 function clearSession() {
