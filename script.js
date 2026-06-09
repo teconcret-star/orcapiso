@@ -223,8 +223,8 @@ function createUniqueId() {
     return `${Date.now()}-${bytesToHex(bytes)}`;
   }
   idGenerationFallbackCounter += 1;
-  const elapsed = Math.floor(window.performance?.now?.() || 0);
-  return `${Date.now()}-${elapsed}-${idGenerationFallbackCounter}`;
+  const elapsed = Math.floor((window.performance?.now?.() || 0) * 1000);
+  return `fallback-${elapsed}-${idGenerationFallbackCounter}`;
 }
 
 function normalizeEmail(value) {
@@ -1041,7 +1041,7 @@ async function derivePasswordHash(password, saltHex, iterations = PASSWORD_ITERA
     iterations
   }, key, 256);
   return Array.from(new Uint8Array(derivedBits))
-    .map((item) => item.toString(16).padStart(2, "0"))
+    .map((byteValue) => byteValue.toString(16).padStart(HEX_BYTE_LENGTH, "0"))
     .join("");
 }
 
