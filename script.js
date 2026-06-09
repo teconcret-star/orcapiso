@@ -324,6 +324,7 @@ function readJsonStorage(key, fallback) {
 
 function writeJsonStorage(key, value) {
   try {
+    // Mantém o estado temporário em memória; o Firestore é a persistência operacional.
     const cloned = cloneStorageValue(value);
     runtimeStorage.set(key, cloned);
 
@@ -3145,66 +3146,66 @@ function restaurarBancoDadosEstimativas() {
 function salvarRascunhoLocal() {
   if (!currentUserId) return;
 
- const payload = {
-   updatedAt: Date.now(),
-   pendingSync: true,
-   snapshot: proposalFieldsSnapshot()
- };
- const saved = writeDraftPayloadToStorage(payload);
- if (saved) {
-   syncFirestoreDraftPayload(payload);
-   const time = new Date().toLocaleTimeString("pt-BR", {
-     hour: "2-digit",
-     minute: "2-digit"
-   });
-   const status = firebaseSyncEnabled
-     ? `Rascunho salvo automaticamente às ${time} no Firestore.`
-     : `Rascunho salvo em memória às ${time} — será sincronizado quando a conexão for restaurada.`;
-   updateDraftStatus(status);
- }
+  const payload = {
+    updatedAt: Date.now(),
+    pendingSync: true,
+    snapshot: proposalFieldsSnapshot()
+  };
+  const saved = writeDraftPayloadToStorage(payload);
+  if (saved) {
+    syncFirestoreDraftPayload(payload);
+    const time = new Date().toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    const status = firebaseSyncEnabled
+      ? `Rascunho salvo automaticamente às ${time} no Firestore.`
+      : `Rascunho salvo em memória às ${time} — será sincronizado quando a conexão for restaurada.`;
+    updateDraftStatus(status);
+  }
 }
 
 async function carregarRascunhoLocal() {
- if (!currentUserId) {
-   updateDraftStatus("Faça login para salvar o rascunho automaticamente.");
-   return;
- }
+  if (!currentUserId) {
+    updateDraftStatus("Faça login para salvar o rascunho automaticamente.");
+    return;
+  }
 
- let localPayload = readDraftPayloadFromStorage();
+  let localPayload = readDraftPayloadFromStorage();
 
- if (!localPayload) {
-   const legacySnapshot = readLegacyJsonStorage(LEGACY_DRAFT_STORAGE_KEY, null);
-   if (legacySnapshot) {
-     localPayload = normalizeDraftPayload(legacySnapshot);
-     writeDraftPayloadToStorage(localPayload);
-     removeLegacyStorageItem(LEGACY_DRAFT_STORAGE_KEY);
-   }
- }
+  if (!localPayload) {
+    const legacySnapshot = readLegacyJsonStorage(LEGACY_DRAFT_STORAGE_KEY, null);
+    if (legacySnapshot) {
+      localPayload = normalizeDraftPayload(legacySnapshot);
+      writeDraftPayloadToStorage(localPayload);
+      removeLegacyStorageItem(LEGACY_DRAFT_STORAGE_KEY);
+    }
+  }
 
- const firestorePayload = await readFirestoreDraftPayload();
- const shouldSyncLocalToFirestore = Boolean(localPayload && (localPayload.pendingSync || !firestorePayload));
- const payload = localPayload?.pendingSync
-   ? localPayload
-   : (firestorePayload || localPayload);
+  const firestorePayload = await readFirestoreDraftPayload();
+  const shouldSyncLocalToFirestore = Boolean(localPayload && (localPayload.pendingSync || !firestorePayload));
+  const payload = localPayload?.pendingSync
+    ? localPayload
+    : (firestorePayload || localPayload);
 
- if (!payload) {
-   updateDraftStatus(firebaseSyncEnabled
-     ? "Os dados do orçamento ficam salvos automaticamente no Firestore."
-     : "Sem conexão — novos rascunhos ficam apenas em memória até reconectar ao Firestore.");
-   return;
- }
+  if (!payload) {
+    updateDraftStatus(firebaseSyncEnabled
+      ? "Os dados do orçamento ficam salvos automaticamente no Firestore."
+      : "Sem conexão — novos rascunhos ficam apenas em memória até reconectar ao Firestore.");
+    return;
+  }
 
- writeDraftPayloadToStorage(payload);
- if (shouldSyncLocalToFirestore) {
-   syncFirestoreDraftPayload(localPayload);
- }
+  writeDraftPayloadToStorage(payload);
+  if (shouldSyncLocalToFirestore) {
+    syncFirestoreDraftPayload(localPayload);
+  }
 
- applyProposalSnapshot(payload.snapshot);
- updateDraftStatus(payload === firestorePayload
-   ? "Rascunho restaurado do Firestore."
-   : shouldSyncLocalToFirestore
-     ? "Rascunho legado restaurado e enviado ao Firestore."
-     : "Rascunho temporário restaurado.");
+  applyProposalSnapshot(payload.snapshot);
+  updateDraftStatus(payload === firestorePayload
+    ? "Rascunho restaurado do Firestore."
+    : shouldSyncLocalToFirestore
+      ? "Rascunho legado restaurado e enviado ao Firestore."
+      : "Rascunho temporário restaurado.");
 }
 
 async function salvarProposta() {
@@ -3607,7 +3608,7 @@ function handleLogout({ silent = false } = {}) {
 }
 
 async function atualizarInterfaceAutenticada() {
-  // Subscribe to Firestore changes FIRST to ensure listeners are active before any field changes
+  // Subscribe to Firestore changes first to ensure listeners are active before any field changes.
   subscribeFirestoreChanges();
   startPendingSyncCheck();
 
