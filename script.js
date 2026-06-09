@@ -120,6 +120,7 @@ let chartValorPorVendedor = null;
 let chartParticipacaoVendedor = null;
 let chartPropostasPorStatus = null;
 let chartValorPorStatus = null;
+let uniqueIdFallbackCounter = 0;
 let pendingSyncCheckIntervalId = null;
 const runtimeStorage = new Map();
 const pendingSyncQueue = new Map(); // Track failed syncs: docId -> { value, retries, nextRetryTime }
@@ -216,7 +217,23 @@ function createUniqueId() {
   if (window.crypto?.randomUUID) {
     return window.crypto.randomUUID();
   }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  if (window.crypto?.getRandomValues) {
+    const bytes = window.crypto.getRandomValues(new Uint8Array(16));
+    return `${Date.now()}-${bytesToHex(bytes)}`;
+  }
+  uniqueIdFallbackCounter += 1;
+  return `${Date.now()}-${uniqueIdFallbackCounter}`;
+}
+
+function containsCredentialFields(value) {
+  if (!value || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some(containsCredentialFields);
+  return Object.keys(value).some((key) => (
+    key === "password"
+    || key === "passwordHash"
+    || key === "passwordSalt"
+    || containsCredentialFields(value[key])
+  ));
 }
 
 function normalizeEmail(value) {
@@ -320,7 +337,7 @@ function writeJsonStorage(key, value) {
     runtimeStorage.set(key, cloned);
 
     // Also persist to localStorage for durability across page reloads
-    if (window.localStorage) {
+    if (window.localStorage && !containsCredentialFields(cloned)) {
       window.localStorage.setItem(key, JSON.stringify(cloned));
     }
 
