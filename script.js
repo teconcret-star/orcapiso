@@ -231,6 +231,10 @@ function pluralize(count, singular, plural) {
   return Number(count) === 1 ? singular : plural;
 }
 
+function formatSetAndItems(sets, items, itemSingular, itemPlural) {
+  return `${sets} ${pluralize(sets, "jogo", "jogos")} / ${items} ${pluralize(items, itemSingular, itemPlural)}`;
+}
+
 function getTipoContratacaoLabel(value) {
   const labels = {
     [CONTRACT_TYPE_LABOR]: "Apenas mão de obra",
@@ -2839,10 +2843,7 @@ function calcularOrcamento() {
   const consumoCaminhao = toNumber($("consumoCaminhao").value);
   const pedagioCaminhao = toNumber($("pedagioCaminhao").value);
   const viagensCaminhao = toNumber($("viagensCaminhao").value);
-  const quantidadeCaminhoesInformada = toPositiveIntegerOrFallback($("quantidadeCaminhoes").value, 0);
-  const quantidadeCaminhoes = quantidadeCaminhoesInformada > 0 || viagensCaminhao <= 0
-    ? quantidadeCaminhoesInformada
-    : 1;
+  const quantidadeCaminhoes = toPositiveIntegerOrFallback($("quantidadeCaminhoes").value, 0);
   const gastoLogisticoPessoal = toNumber($("gastoLogisticoPessoal").value);
   const gastoLogisticoMaquinario = toNumber($("gastoLogisticoMaquinario").value);
   const valorDia = toNumber($("valorDia").value);
@@ -2933,7 +2934,7 @@ function calcularOrcamento() {
     + (funcionariosConcretagem * diasConcretagem)
     + (funcionariosAcabamento * diasAcabamento);
   const usaCronogramaAtividades = atividadePersonDays > 0;
-  const funcionariosConsiderados = usaCronogramaAtividades
+  const funcionariosPico = usaCronogramaAtividades
     ? Math.max(funcionariosPreparacao, funcionariosConcretagem, funcionariosAcabamento)
     : funcionariosSelecionados;
   const funcionarioDias = usaCronogramaAtividades ? atividadePersonDays : funcionariosSelecionados * dias;
@@ -3015,13 +3016,13 @@ function calcularOrcamento() {
   $("resDeslocamento").textContent = formatMoney(custoDeslocamento);
   $("resMaoDeObra").textContent = formatMoney(custoMaoDeObra);
   $("resFuncionarios").textContent = usaCronogramaAtividades
-    ? `${funcionariosConsiderados} (pico) / ${formatNumber(funcionarioDias)} ${pluralize(funcionarioDias, "funcionário-dia", "funcionários-dia")}`
+    ? `${funcionariosPico} (pico) / ${formatNumber(funcionarioDias)} ${pluralize(funcionarioDias, "funcionário-dia", "funcionários-dia")}`
     : String(funcionariosSelecionados);
   $("resAlimentacao").textContent = formatMoney(custoAlimentacao);
   $("resHotel").textContent = formatMoney(custoHotel);
-  $("resFacasQtd").textContent = `${jogosFacasEstimados} ${pluralize(jogosFacasEstimados, "jogo", "jogos")} / ${facasEstimadas} ${pluralize(facasEstimadas, "faca", "facas")}`;
+  $("resFacasQtd").textContent = formatSetAndItems(jogosFacasEstimados, facasEstimadas, "faca", "facas");
   $("resFacasCusto").textContent = formatMoney(custoFacas);
-  $("resDiscosQtd").textContent = `${jogosDiscosEstimados} ${pluralize(jogosDiscosEstimados, "jogo", "jogos")} / ${discosEstimados} ${pluralize(discosEstimados, "disco", "discos")}`;
+  $("resDiscosQtd").textContent = formatSetAndItems(jogosDiscosEstimados, discosEstimados, "disco", "discos");
   $("resDiscosCusto").textContent = formatMoney(custoDiscos);
   $("resCombustivelMaquinasLitros").textContent = `${formatNumber(litrosCombustivelMaquinas)} L`;
   $("resCombustivelMaquinas").textContent = formatMoney(custoCombustivelMaquinas);
@@ -3055,8 +3056,8 @@ function calcularOrcamento() {
   addServiceLine(servicosDetalhados, "Deslocamento e logística", custoDeslocamento, metragem);
   addServiceLine(servicosDetalhados, "Mão de obra de execução", custoMaoDeObra, metragem);
   addServiceLine(servicosDetalhados, "Alimentação e estadia da equipe", custoAlimentacao + custoHotel, metragem);
-  addServiceLine(servicosDetalhados, `Facas de acabamento (${jogosFacasEstimados} ${pluralize(jogosFacasEstimados, "jogo", "jogos")})`, custoFacas, metragem);
-  addServiceLine(servicosDetalhados, `Discos de flotagem (${jogosDiscosEstimados} ${pluralize(jogosDiscosEstimados, "jogo", "jogos")})`, custoDiscos, metragem);
+  addServiceLine(servicosDetalhados, `Facas de acabamento (${formatSetAndItems(jogosFacasEstimados, facasEstimadas, "faca", "facas")})`, custoFacas, metragem);
+  addServiceLine(servicosDetalhados, `Discos de flotagem (${formatSetAndItems(jogosDiscosEstimados, discosEstimados, "disco", "discos")})`, custoDiscos, metragem);
   addServiceLine(servicosDetalhados, "Combustível das máquinas", custoCombustivelMaquinas, metragem);
   addServiceLine(servicosDetalhados, "Terraplanagem", terraplanagemTotal, metragem);
   addServiceLine(servicosDetalhados, "Colocação de malha de aço/tela", custoTelaTotal, metragem);
@@ -3083,7 +3084,7 @@ function calcularOrcamento() {
     metragem,
     total,
     valorM2,
-    funcionariosSelecionados: funcionariosConsiderados
+    funcionariosSelecionados: funcionariosPico
   };
 }
 
