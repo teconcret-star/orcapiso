@@ -231,7 +231,7 @@ function pluralize(count, singular, plural) {
   return Number(count) === 1 ? singular : plural;
 }
 
-function formatSetAndItems(sets, items, itemSingular, itemPlural) {
+function formatConsumableSetsAndItems(sets, items, itemSingular, itemPlural) {
   return `${sets} ${pluralize(sets, "jogo", "jogos")} / ${items} ${pluralize(items, itemSingular, itemPlural)}`;
 }
 
@@ -2788,7 +2788,7 @@ function limparPerfil() {
   showToast("Campos do perfil limpos.");
 }
 
-function addServiceLine(lines, label, total, metragem, { includeZero = false } = {}) {
+function pushServiceLine(lines, label, total, metragem, { includeZero = false } = {}) {
   const normalizedTotal = Math.max(0, toNumber(total));
   if (!includeZero && normalizedTotal === 0) return;
   lines.push({
@@ -3020,9 +3020,9 @@ function calcularOrcamento() {
     : String(funcionariosSelecionados);
   $("resAlimentacao").textContent = formatMoney(custoAlimentacao);
   $("resHotel").textContent = formatMoney(custoHotel);
-  $("resFacasQtd").textContent = formatSetAndItems(jogosFacasEstimados, facasEstimadas, "faca", "facas");
+  $("resFacasQtd").textContent = formatConsumableSetsAndItems(jogosFacasEstimados, facasEstimadas, "faca", "facas");
   $("resFacasCusto").textContent = formatMoney(custoFacas);
-  $("resDiscosQtd").textContent = formatSetAndItems(jogosDiscosEstimados, discosEstimados, "disco", "discos");
+  $("resDiscosQtd").textContent = formatConsumableSetsAndItems(jogosDiscosEstimados, discosEstimados, "disco", "discos");
   $("resDiscosCusto").textContent = formatMoney(custoDiscos);
   $("resCombustivelMaquinasLitros").textContent = `${formatNumber(litrosCombustivelMaquinas)} L`;
   $("resCombustivelMaquinas").textContent = formatMoney(custoCombustivelMaquinas);
@@ -3053,28 +3053,28 @@ function calcularOrcamento() {
   $("prevVendedorNome").textContent = profile.nomeVendedor || currentUser?.name || "-";
   $("prevTipoContratacao").textContent = getTipoContratacaoLabel(tipoContratacao);
   const servicosDetalhados = [];
-  addServiceLine(servicosDetalhados, "Deslocamento e logística", custoDeslocamento, metragem);
-  addServiceLine(servicosDetalhados, "Mão de obra de execução", custoMaoDeObra, metragem);
-  addServiceLine(servicosDetalhados, "Alimentação e estadia da equipe", custoAlimentacao + custoHotel, metragem);
-  addServiceLine(servicosDetalhados, `Facas de acabamento (${formatSetAndItems(jogosFacasEstimados, facasEstimadas, "faca", "facas")})`, custoFacas, metragem);
-  addServiceLine(servicosDetalhados, `Discos de flotagem (${formatSetAndItems(jogosDiscosEstimados, discosEstimados, "disco", "discos")})`, custoDiscos, metragem);
-  addServiceLine(servicosDetalhados, "Combustível das máquinas", custoCombustivelMaquinas, metragem);
-  addServiceLine(servicosDetalhados, "Terraplanagem", terraplanagemTotal, metragem);
-  addServiceLine(servicosDetalhados, "Colocação de malha de aço/tela", custoTelaTotal, metragem);
-  addServiceLine(servicosDetalhados, "Fornecimento e aplicação de cura química", custoCuraQuimica, metragem);
-  addServiceLine(servicosDetalhados, "Preparação de laje (chaveamento)", custoPreparoLaje, metragem);
-  addServiceLine(servicosDetalhados, "Colocação de pisos intertravados", custoPisoIntertravado, metragem);
-  addServiceLine(servicosDetalhados, "Fornecimento e aplicação de concreto", custoConcreto, metragem);
-  addServiceLine(servicosDetalhados, "Fornecimento e aplicação de fibra", custoFibra, metragem);
-  addServiceLine(servicosDetalhados, "Fornecimento e aplicação de agregado mineral", custoAgregadoMineral, metragem);
-  addServiceLine(servicosDetalhados, "Fornecimento e aplicação de endurecedor", custoEndurecedor, metragem);
-  addServiceLine(servicosDetalhados, "Fornecimento e aplicação de junta de PU", custoJuntaPu, metragem);
-  addServiceLine(servicosDetalhados, "Fornecimento e aplicação de lábio polimérico", custoLabioPolimerico, metragem);
-  addServiceLine(servicosDetalhados, "Pintura à base de epóxi", custoPinturaEpoxi, metragem);
-  addServiceLine(servicosDetalhados, locacaoManualDescricao || "Locação externa de máquinas/equipamentos", locacaoManualValor, metragem);
-  addServiceLine(servicosDetalhados, servicoAdicionalDescricao || "Serviço adicional", servicoAdicionalValor, metragem);
-  addServiceLine(servicosDetalhados, "Encargos adicionais", encargos, metragem);
-  addServiceLine(servicosDetalhados, "Outros custos", outrosCustos, metragem);
+  pushServiceLine(servicosDetalhados, "Deslocamento e logística", custoDeslocamento, metragem);
+  pushServiceLine(servicosDetalhados, "Mão de obra de execução", custoMaoDeObra, metragem);
+  pushServiceLine(servicosDetalhados, "Alimentação e estadia da equipe", custoAlimentacao + custoHotel, metragem);
+  pushServiceLine(servicosDetalhados, `Facas de acabamento (${formatConsumableSetsAndItems(jogosFacasEstimados, facasEstimadas, "faca", "facas")})`, custoFacas, metragem);
+  pushServiceLine(servicosDetalhados, `Discos de flotagem (${formatConsumableSetsAndItems(jogosDiscosEstimados, discosEstimados, "disco", "discos")})`, custoDiscos, metragem);
+  pushServiceLine(servicosDetalhados, "Combustível das máquinas", custoCombustivelMaquinas, metragem);
+  pushServiceLine(servicosDetalhados, "Terraplanagem", terraplanagemTotal, metragem);
+  pushServiceLine(servicosDetalhados, "Colocação de malha de aço/tela", custoTelaTotal, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de cura química", custoCuraQuimica, metragem);
+  pushServiceLine(servicosDetalhados, "Preparação de laje (chaveamento)", custoPreparoLaje, metragem);
+  pushServiceLine(servicosDetalhados, "Colocação de pisos intertravados", custoPisoIntertravado, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de concreto", custoConcreto, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de fibra", custoFibra, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de agregado mineral", custoAgregadoMineral, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de endurecedor", custoEndurecedor, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de junta de PU", custoJuntaPu, metragem);
+  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de lábio polimérico", custoLabioPolimerico, metragem);
+  pushServiceLine(servicosDetalhados, "Pintura à base de epóxi", custoPinturaEpoxi, metragem);
+  pushServiceLine(servicosDetalhados, locacaoManualDescricao || "Locação externa de máquinas/equipamentos", locacaoManualValor, metragem);
+  pushServiceLine(servicosDetalhados, servicoAdicionalDescricao || "Serviço adicional", servicoAdicionalValor, metragem);
+  pushServiceLine(servicosDetalhados, "Encargos adicionais", encargos, metragem);
+  pushServiceLine(servicosDetalhados, "Outros custos", outrosCustos, metragem);
   renderServicosDetalhados(servicosDetalhados);
   atualizarPreviaPerfil();
 
@@ -3084,7 +3084,7 @@ function calcularOrcamento() {
     metragem,
     total,
     valorM2,
-    funcionariosSelecionados: funcionariosPico
+    funcionariosPico
   };
 }
 
