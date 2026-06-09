@@ -1333,7 +1333,7 @@ function createEquipamentoAlugadoItem(item = {}) {
       <label for="${totalId}">Total do item</label>
       <input id="${totalId}" type="text" class="equipamento-alugado-total" value="${formatMoney(0)}" readonly />
     </div>
-    <button type="button" class="btn btn-danger btn-inline" data-action="remover-equipamento" aria-label="Remover item de equipamento alugado">Remover</button>
+    <button type="button" class="btn btn-danger btn-inline" data-action="excluir-equipamento" aria-label="Excluir item de equipamento alugado">Excluir</button>
   `;
   if (diaria > 0) {
     row.querySelector(".equipamento-alugado-diaria").value = diaria;
@@ -1357,7 +1357,7 @@ function readEquipamentosAlugadosFromUI({ dias = toNumber($("dias").value), upda
 
 function renderEquipamentosAlugadosItems(items = []) {
   const list = $("equipamentosAlugadosList");
-  const normalizedItems = (items.length ? items : [{ tipo: EQUIPAMENTOS_ALUGADOS_OPCOES[0].value, diaria: 0 }])
+  const normalizedItems = (items || [])
     .map((item) => ({
       tipo: sanitizeEquipamentoAlugadoTipo(item.tipo),
       diaria: toNumber(item.diaria)
@@ -2876,7 +2876,6 @@ function calcularOrcamento() {
   setEquipamentosAlugadosItemsSnapshot(equipamentosAlugados);
   const custoEquipamentosAlugados = equipamentosAlugados
     .reduce((total, item) => total + item.totalItem, 0);
-  const observacaoEquipamentosAlugados = $("equipamentosAlugadosObservacao").value.trim();
   const locacaoManualValor = toNumber($("locacaoManualValor").value);
   const locacaoManualDescricao = $("locacaoManualDescricao").value.trim();
   const tipoContratacao = $("tipoContratacao").value;
@@ -2896,8 +2895,6 @@ function calcularOrcamento() {
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
   const impostoPercentual = toNumber($("impostoPercentual").value);
-  const propostaStatus = normalizeProposalStatus($("propostaStatus").value);
-  const propostaStatusObservacao = $("propostaStatusObservacao").value.trim();
   const machineDb = getMachineDatabase();
   const funcionariosAutomaticos = calcularFuncionariosPorMetragem(metragem);
   const modoFuncionarios = getModoFuncionarios();
@@ -3040,14 +3037,6 @@ function calcularOrcamento() {
   $("prevValidade").textContent = $("propostaValidade").value.trim() || "-";
   $("prevPrazo").textContent = $("propostaPrazo").value.trim() || "-";
   $("prevPagamento").textContent = $("propostaPagamento").value.trim() || "-";
-  const statusMeta = getProposalStatusMeta(propostaStatus);
-  $("prevStatusProposta").className = `proposal-status ${statusMeta.className}`;
-  $("prevStatusProposta").textContent = statusMeta.label;
-  $("prevStatusObservacao").hidden = propostaStatus !== PROPOSAL_STATUS_PERDIDA;
-  $("prevStatusObservacao").textContent = `Obs. da perda: ${propostaStatusObservacao || "-"}`;
-  $("prevEquipamentosAlugadosObs").textContent = equipamentosTipo === EQUIPAMENTOS_TIPO_ALUGADOS
-    ? (observacaoEquipamentosAlugados || "-")
-    : "-";
   $("prevTextoPadrao").textContent = getTextoPadraoProposta();
   $("prevObservacoes").textContent = `Observações: ${$("propostaObservacoes").value.trim() || "-"}`;
   $("prevVendedorNome").textContent = profile.nomeVendedor || currentUser?.name || "-";
@@ -3470,12 +3459,6 @@ function limparCampos() {
   showToast("Campos limpos com sucesso.");
 }
 
-function alternarBancoDadosEstimativas() {
-  const form = $("machineDbForm");
-  form.hidden = !form.hidden;
-  $("btnAbrirBancoDados").textContent = form.hidden ? "Abrir banco de dados" : "Fechar banco de dados";
-}
-
 function salvarBancoDadosEstimativas(event) {
   event?.preventDefault();
   if (!isAdmin()) return;
@@ -3486,7 +3469,7 @@ function salvarBancoDadosEstimativas(event) {
   applyMachineDatabaseToForm();
   calcularOrcamento();
   salvarRascunhoLocal();
-  showToast("Banco de dados sincronizado com o Firestore.");
+  showToast("Parâmetros manuais salvos.");
 }
 
 function restaurarBancoDadosEstimativas() {
@@ -3690,8 +3673,6 @@ function gerarMensagemWhatsApp() {
     `Endereço da obra: ${$("endereco").value.trim() || "-"}`,
     `Área: ${$("resArea").textContent}`,
     `Valor total: ${$("resTotal").textContent}`,
-    `Status da proposta: ${getProposalStatusMeta($("propostaStatus").value).label}`,
-    `Obs. da perda: ${$("propostaStatus").value === PROPOSAL_STATUS_PERDIDA ? ($("propostaStatusObservacao").value.trim() || "-") : "-"}`,
     `Preço por m²: ${$("resValorM2").textContent}`,
     `Número da proposta: ${$("propostaNumero").value.trim() || "-"}`,
     `Validade: ${$("propostaValidade").value.trim() || "-"}`,
@@ -3982,8 +3963,6 @@ async function atualizarInterfaceAutenticada() {
   renderDashboard();
   atualizarTextoBotaoProposta();
   applyMachineDatabaseToForm();
-  $("machineDbForm").hidden = true;
-  $("btnAbrirBancoDados").textContent = "Abrir banco de dados";
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
   await carregarRascunhoLocal();
@@ -4041,7 +4020,6 @@ function bindStaticEvents() {
   $("btnLimparUsuario").addEventListener("click", resetUserForm);
   $("btnLimparCliente").addEventListener("click", resetClientForm);
   $("btnIrParaClientes").addEventListener("click", () => activateTab("tabClientes"));
-  $("btnAbrirBancoDados").addEventListener("click", alternarBancoDadosEstimativas);
   $("btnRestaurarBancoDados").addEventListener("click", restaurarBancoDadosEstimativas);
   $("btnCalcular").addEventListener("click", () => {
     calcularOrcamento();
@@ -4186,14 +4164,11 @@ function bindStaticEvents() {
   });
 
   $("equipamentosAlugadosList").addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-action='remover-equipamento']");
+    const button = event.target.closest("button[data-action='excluir-equipamento']");
     if (!button) return;
     const row = button.closest(".equipamento-item");
     if (!row) return;
     row.remove();
-    if (!$("equipamentosAlugadosList").children.length) {
-      $("equipamentosAlugadosList").appendChild(createEquipamentoAlugadoItem());
-    }
     calcularOrcamento();
     salvarRascunhoLocal();
   });
