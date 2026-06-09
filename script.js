@@ -517,6 +517,8 @@ async function reconnectFirebase() {
         startPendingSyncCheck();
         refreshAppFromStorage();
         await carregarRascunhoLocal();
+      } else {
+        await restoreSession();
       }
       return true;
     } catch (error) {
@@ -841,7 +843,12 @@ function subscribeFirestoreChanges() {
       if (!snap.exists) return;
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
-      usersCache = normalizeUsersForStorage(data);
+      const normalizedUsers = normalizeUsersForStorage(data);
+      if (currentUserId && currentUser && !normalizedUsers.length && usersCache.length) {
+        console.warn("Lista de usuários vazia ignorada para preservar a sessão ativa.");
+        return;
+      }
+      usersCache = normalizedUsers;
       removeLegacyStorageItem(USERS_STORAGE_KEY);
       if (currentUserId) {
         refreshCurrentUser();
@@ -958,11 +965,18 @@ async function bootstrapStorageFromFirebase() {
 
     // Initialize or restore users and ensure Firestore document exists
     if (users && Array.isArray(users)) {
-      usersCache = normalizeUsersForStorage(users);
+      const normalizedUsers = normalizeUsersForStorage(users);
+      if (currentUserId && currentUser && !normalizedUsers.length && usersCache.length) {
+        console.warn("Lista de usuários vazia ignorada para preservar a sessão ativa.");
+      } else {
+        usersCache = normalizedUsers;
+      }
     } else {
       const legacyUsers = readLegacyJsonStorage(USERS_STORAGE_KEY, null);
       if (legacyUsers && Array.isArray(legacyUsers) && legacyUsers.length) {
         usersCache = normalizeUsersForStorage(legacyUsers);
+      } else if (usersCache.length) {
+        usersCache = normalizeUsersForStorage(usersCache);
       } else {
         usersCache = [];
       }
@@ -974,8 +988,11 @@ async function bootstrapStorageFromFirebase() {
       writeJsonStorage(PROPOSALS_STORAGE_KEY, proposals);
     } else {
       const legacyProposals = readLegacyJsonStorage(PROPOSALS_STORAGE_KEY, null);
+      const currentProposals = readJsonStorage(PROPOSALS_STORAGE_KEY, []);
       if (legacyProposals && Array.isArray(legacyProposals) && legacyProposals.length) {
         writeJsonStorage(PROPOSALS_STORAGE_KEY, legacyProposals);
+      } else if (currentProposals.length) {
+        writeJsonStorage(PROPOSALS_STORAGE_KEY, currentProposals);
       } else {
         writeJsonStorage(PROPOSALS_STORAGE_KEY, []);
       }
@@ -987,8 +1004,11 @@ async function bootstrapStorageFromFirebase() {
       writeJsonStorage(CLIENTS_STORAGE_KEY, clients);
     } else {
       const legacyClients = readLegacyJsonStorage(CLIENTS_STORAGE_KEY, null);
+      const currentClients = readJsonStorage(CLIENTS_STORAGE_KEY, []);
       if (legacyClients && Array.isArray(legacyClients) && legacyClients.length) {
         writeJsonStorage(CLIENTS_STORAGE_KEY, legacyClients);
+      } else if (currentClients.length) {
+        writeJsonStorage(CLIENTS_STORAGE_KEY, currentClients);
       } else {
         writeJsonStorage(CLIENTS_STORAGE_KEY, []);
       }
@@ -1002,8 +1022,12 @@ async function bootstrapStorageFromFirebase() {
       writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
     } else {
       const legacyMachineDb = readLegacyJsonStorage(MACHINE_DB_STORAGE_KEY, null);
+      const currentMachineDb = readJsonStorage(MACHINE_DB_STORAGE_KEY, null);
       if (legacyMachineDb && !Array.isArray(legacyMachineDb) && typeof legacyMachineDb === "object") {
         normalizedMachineDb = normalizeMachineDatabase(legacyMachineDb);
+        writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
+      } else if (currentMachineDb && !Array.isArray(currentMachineDb) && typeof currentMachineDb === "object") {
+        normalizedMachineDb = normalizeMachineDatabase(currentMachineDb);
         writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizedMachineDb);
       } else {
         normalizedMachineDb = DEFAULT_MACHINE_DATABASE;
@@ -1617,6 +1641,9 @@ function refreshCurrentUser() {
 
   const storedUser = getCurrentUserFromStorage();
   if (!storedUser || !storedUser.active) {
+    if (!storedUser && currentUser && !getUsers().length) {
+      return currentUser;
+    }
     handleLogout({ silent: true });
     return null;
   }
@@ -3707,6 +3734,10 @@ async function restoreSession() {
 
   const user = getUsers().find((item) => item.id === session.userId && item.active);
   if (!user) {
+    if (!firebaseSyncEnabled) {
+      updateAppVisibility();
+      return;
+    }
     clearSession();
     updateAppVisibility();
     return;
