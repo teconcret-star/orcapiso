@@ -1641,10 +1641,11 @@ function refreshCurrentUser() {
   }
 
   const storedUser = getCurrentUserFromStorage();
+  if (!storedUser && currentUser && !firebaseSyncEnabled) {
+    return currentUser;
+  }
+
   if (!storedUser || !storedUser.active) {
-    if (!storedUser && currentUser && !firebaseSyncEnabled) {
-      return currentUser;
-    }
     handleLogout({ silent: true });
     return null;
   }
@@ -3736,6 +3737,7 @@ async function restoreSession() {
   const user = getUsers().find((item) => item.id === session.userId && item.active);
   if (!user) {
     if (!firebaseSyncEnabled) {
+      // Mantém a sessão salva para tentar restaurar quando o Firestore reconectar.
       updateAppVisibility();
       return;
     }
