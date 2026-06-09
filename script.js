@@ -732,6 +732,9 @@ function handleFirebaseConnectionError(message, error) {
   firestoreDb = null;
   firebaseSyncEnabled = false;
   clearFirestoreListeners();
+  if (!window.firebase?.firestore || window.navigator?.onLine === false) {
+    updateFirebaseStatus(FIREBASE_STATUS_DISCONNECTED);
+  }
   scheduleFirebaseReconnect();
 }
 
