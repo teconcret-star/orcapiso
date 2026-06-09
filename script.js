@@ -220,9 +220,13 @@ function formatDate(value = new Date()) {
   return new Date(value).toLocaleDateString("pt-BR");
 }
 
-function toPositiveInteger(value, fallback = 0) {
+function toPositiveIntegerOrFallback(value, fallback = 0) {
   const number = Math.round(toNumber(value));
   return number > 0 ? number : fallback;
+}
+
+function pluralize(count, singular, plural) {
+  return Number(count) === 1 ? singular : plural;
 }
 
 function getTipoContratacaoLabel(value) {
@@ -1461,12 +1465,12 @@ function normalizeMachineDatabase(data = {}) {
   const rendimentoFacasM2 = toNumber(data.rendimentoFacasM2) > 0
     ? toNumber(data.rendimentoFacasM2)
     : DEFAULT_MACHINE_DATABASE.rendimentoFacasM2;
-  const facasPorJogo = toPositiveInteger(data.facasPorJogo, DEFAULT_MACHINE_DATABASE.facasPorJogo);
+  const facasPorJogo = toPositiveIntegerOrFallback(data.facasPorJogo, DEFAULT_MACHINE_DATABASE.facasPorJogo);
   const precoFaca = Math.max(0, toNumber(data.precoFaca));
   const rendimentoDiscoM2 = toNumber(data.rendimentoDiscoM2) > 0
     ? toNumber(data.rendimentoDiscoM2)
     : DEFAULT_MACHINE_DATABASE.rendimentoDiscoM2;
-  const discosPorJogo = toPositiveInteger(data.discosPorJogo, DEFAULT_MACHINE_DATABASE.discosPorJogo);
+  const discosPorJogo = toPositiveIntegerOrFallback(data.discosPorJogo, DEFAULT_MACHINE_DATABASE.discosPorJogo);
   const precoDisco = Math.max(0, toNumber(data.precoDisco));
   const consumoDuplaLitrosM2 = Math.max(0, toNumber(data.consumoDuplaLitrosM2));
   const consumoSimplesLitrosM2 = Math.max(0, toNumber(data.consumoSimplesLitrosM2));
@@ -1534,10 +1538,10 @@ function aplicarEstimativaMercadoPreCadastrada() {
 function readMachineDatabaseFromForm() {
   return {
     rendimentoFacasM2: toNumber($("paramRendimentoFacas").value),
-    facasPorJogo: toPositiveInteger($("paramFacasPorJogo").value, DEFAULT_MACHINE_DATABASE.facasPorJogo),
+    facasPorJogo: toPositiveIntegerOrFallback($("paramFacasPorJogo").value, DEFAULT_MACHINE_DATABASE.facasPorJogo),
     precoFaca: toNumber($("paramPrecoFaca").value),
     rendimentoDiscoM2: toNumber($("paramRendimentoDisco").value),
-    discosPorJogo: toPositiveInteger($("paramDiscosPorJogo").value, DEFAULT_MACHINE_DATABASE.discosPorJogo),
+    discosPorJogo: toPositiveIntegerOrFallback($("paramDiscosPorJogo").value, DEFAULT_MACHINE_DATABASE.discosPorJogo),
     precoDisco: toNumber($("paramPrecoDisco").value),
     consumoDuplaLitrosM2: toNumber($("paramConsumoMaquinaDupla").value),
     consumoSimplesLitrosM2: toNumber($("paramConsumoMaquinaSimples").value),
@@ -2776,7 +2780,7 @@ function limparPerfil() {
 
 function addServiceLine(lines, label, total, metragem, { includeZero = false } = {}) {
   const normalizedTotal = Math.max(0, toNumber(total));
-  if (!includeZero && normalizedTotal <= 0) return;
+  if (!includeZero && normalizedTotal === 0) return;
   lines.push({
     label,
     total: normalizedTotal,
@@ -2829,18 +2833,18 @@ function calcularOrcamento() {
   const consumoCaminhao = toNumber($("consumoCaminhao").value);
   const pedagioCaminhao = toNumber($("pedagioCaminhao").value);
   const viagensCaminhao = toNumber($("viagensCaminhao").value);
-  const quantidadeCaminhoes = toPositiveInteger($("quantidadeCaminhoes").value, viagensCaminhao > 0 ? 1 : 0);
+  const quantidadeCaminhoes = toPositiveIntegerOrFallback($("quantidadeCaminhoes").value, viagensCaminhao > 0 ? 1 : 0);
   const gastoLogisticoPessoal = toNumber($("gastoLogisticoPessoal").value);
   const gastoLogisticoMaquinario = toNumber($("gastoLogisticoMaquinario").value);
   const valorDia = toNumber($("valorDia").value);
   const dias = toNumber($("dias").value);
   const diasPreparacao = toNumber($("diasPreparacao").value);
-  const funcionariosPreparacao = toPositiveInteger($("funcionariosPreparacao").value, 0);
+  const funcionariosPreparacao = toPositiveIntegerOrFallback($("funcionariosPreparacao").value, 0);
   const diasConcretagem = toNumber($("diasConcretagem").value);
-  const funcionariosConcretagem = toPositiveInteger($("funcionariosConcretagem").value, 0);
+  const funcionariosConcretagem = toPositiveIntegerOrFallback($("funcionariosConcretagem").value, 0);
   const diasAcabamento = toNumber($("diasAcabamento").value);
-  const funcionariosAcabamento = toPositiveInteger($("funcionariosAcabamento").value, 0);
-  const quantidadeDiaristas = toPositiveInteger($("quantidadeDiaristas").value, 0);
+  const funcionariosAcabamento = toPositiveIntegerOrFallback($("funcionariosAcabamento").value, 0);
+  const quantidadeDiaristas = toPositiveIntegerOrFallback($("quantidadeDiaristas").value, 0);
   const valorDiarista = toNumber($("valorDiarista").value);
   const quantidadeHorasExtras = toNumber($("quantidadeHorasExtras").value);
   const valorHoraExtra = toNumber($("valorHoraExtra").value);
@@ -3006,9 +3010,9 @@ function calcularOrcamento() {
     : String(funcionariosSelecionados);
   $("resAlimentacao").textContent = formatMoney(custoAlimentacao);
   $("resHotel").textContent = formatMoney(custoHotel);
-  $("resFacasQtd").textContent = `${jogosFacasEstimados} jogo(s) / ${facasEstimadas} faca(s)`;
+  $("resFacasQtd").textContent = `${jogosFacasEstimados} ${pluralize(jogosFacasEstimados, "jogo", "jogos")} / ${facasEstimadas} ${pluralize(facasEstimadas, "faca", "facas")}`;
   $("resFacasCusto").textContent = formatMoney(custoFacas);
-  $("resDiscosQtd").textContent = `${jogosDiscosEstimados} jogo(s) / ${discosEstimados} disco(s)`;
+  $("resDiscosQtd").textContent = `${jogosDiscosEstimados} ${pluralize(jogosDiscosEstimados, "jogo", "jogos")} / ${discosEstimados} ${pluralize(discosEstimados, "disco", "discos")}`;
   $("resDiscosCusto").textContent = formatMoney(custoDiscos);
   $("resCombustivelMaquinasLitros").textContent = `${formatNumber(litrosCombustivelMaquinas)} L`;
   $("resCombustivelMaquinas").textContent = formatMoney(custoCombustivelMaquinas);
@@ -3042,8 +3046,8 @@ function calcularOrcamento() {
   addServiceLine(servicosDetalhados, "Deslocamento e logística", custoDeslocamento, metragem);
   addServiceLine(servicosDetalhados, "Mão de obra de execução", custoMaoDeObra, metragem);
   addServiceLine(servicosDetalhados, "Alimentação e estadia da equipe", custoAlimentacao + custoHotel, metragem);
-  addServiceLine(servicosDetalhados, `Facas de acabamento (${jogosFacasEstimados} jogo(s))`, custoFacas, metragem);
-  addServiceLine(servicosDetalhados, `Discos de flotagem (${jogosDiscosEstimados} jogo(s))`, custoDiscos, metragem);
+  addServiceLine(servicosDetalhados, `Facas de acabamento (${jogosFacasEstimados} ${pluralize(jogosFacasEstimados, "jogo", "jogos")})`, custoFacas, metragem);
+  addServiceLine(servicosDetalhados, `Discos de flotagem (${jogosDiscosEstimados} ${pluralize(jogosDiscosEstimados, "jogo", "jogos")})`, custoDiscos, metragem);
   addServiceLine(servicosDetalhados, "Combustível das máquinas", custoCombustivelMaquinas, metragem);
   addServiceLine(servicosDetalhados, "Terraplanagem", terraplanagemTotal, metragem);
   addServiceLine(servicosDetalhados, "Colocação de malha de aço/tela", custoTelaTotal, metragem);
@@ -3059,7 +3063,8 @@ function calcularOrcamento() {
   addServiceLine(servicosDetalhados, "Pintura à base de epóxi", custoPinturaEpoxi, metragem);
   addServiceLine(servicosDetalhados, locacaoManualDescricao || "Locação externa de máquinas/equipamentos", locacaoManualValor, metragem);
   addServiceLine(servicosDetalhados, servicoAdicionalDescricao || "Serviço adicional", servicoAdicionalValor, metragem);
-  addServiceLine(servicosDetalhados, "Outros custos", outrosCustos + encargos, metragem);
+  addServiceLine(servicosDetalhados, "Encargos adicionais", encargos, metragem);
+  addServiceLine(servicosDetalhados, "Outros custos", outrosCustos, metragem);
   renderServicosDetalhados(servicosDetalhados);
   atualizarPreviaPerfil();
 
