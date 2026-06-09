@@ -626,7 +626,6 @@ async function reconnectFirebase() {
     try {
       // Allow Firestore client time to establish network connection before reading documents
       await new Promise((resolve) => setTimeout(resolve, FIREBASE_INIT_CONNECTION_DELAY_MS));
-      loadPendingSyncQueueFromStorage();
       await bootstrapStorageFromFirebase();
       subscribeFirestoreChanges();
 
