@@ -43,6 +43,7 @@ const FIREBASE_RECONNECT_DELAY_MS = 3000;
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const IFRAME_CLEANUP_DELAY_MS = 600;
 const IFRAME_PRINT_FALLBACK_TIMEOUT_MS = 2000;
+const PRESERVE_USERS_CACHE_WARNING = "Lista de usuários vazia ignorada para preservar a sessão ativa.";
 const DEFAULT_STANDARD_TEXT =
   "Apresentamos nossa proposta comercial para execução do piso industrial conforme dados da obra informados. Os valores contemplam o escopo acordado para a área indicada e permanecem sujeitos à validação final das condições do local antes do início dos serviços.";
 const DEFAULT_IMPOSTO_PERCENTUAL = "1";
@@ -611,7 +612,13 @@ function canDeleteUser(user, actor = currentUser) {
 }
 
 function shouldPreserveUsersCache(normalizedUsers) {
-  return Boolean(currentUserId && currentUser && !normalizedUsers.length && usersCache.length);
+  return Boolean(
+    currentUserId
+    && currentUser
+    && Array.isArray(normalizedUsers)
+    && normalizedUsers.length === 0
+    && usersCache.length
+  );
 }
 
 function initializeFirebaseConnection() {
@@ -847,13 +854,13 @@ function subscribeFirestoreChanges() {
       if (!snap.exists) return;
       const data = snap.data()?.data;
       if (!Array.isArray(data)) return;
+      removeLegacyStorageItem(USERS_STORAGE_KEY);
       const normalizedUsers = normalizeUsersForStorage(data);
       if (shouldPreserveUsersCache(normalizedUsers)) {
-        console.warn("Lista de usuários vazia ignorada para preservar a sessão ativa.");
+        console.warn(PRESERVE_USERS_CACHE_WARNING);
         return;
       }
       usersCache = normalizedUsers;
-      removeLegacyStorageItem(USERS_STORAGE_KEY);
       if (currentUserId) {
         refreshCurrentUser();
         renderUsersTable();
@@ -971,7 +978,7 @@ async function bootstrapStorageFromFirebase() {
     if (users && Array.isArray(users)) {
       const normalizedUsers = normalizeUsersForStorage(users);
       if (shouldPreserveUsersCache(normalizedUsers)) {
-        console.warn("Lista de usuários vazia ignorada para preservar a sessão ativa.");
+        console.warn(PRESERVE_USERS_CACHE_WARNING);
       } else {
         usersCache = normalizedUsers;
       }
@@ -979,9 +986,7 @@ async function bootstrapStorageFromFirebase() {
       const legacyUsers = readLegacyJsonStorage(USERS_STORAGE_KEY, null);
       if (legacyUsers && Array.isArray(legacyUsers) && legacyUsers.length) {
         usersCache = normalizeUsersForStorage(legacyUsers);
-      } else if (usersCache.length) {
-        usersCache = normalizeUsersForStorage(usersCache);
-      } else {
+      } else if (!usersCache.length) {
         usersCache = [];
       }
     }
@@ -1641,7 +1646,7 @@ function refreshCurrentUser() {
   }
 
   const storedUser = getCurrentUserFromStorage();
-  if (!storedUser && currentUser && !firebaseSyncEnabled) {
+  if (!storedUser && currentUser && !firebaseSyncEnabled && (isAdmin(currentUser) || currentUser.active)) {
     return currentUser;
   }
 
@@ -3737,7 +3742,7 @@ async function restoreSession() {
   const user = getUsers().find((item) => item.id === session.userId && item.active);
   if (!user) {
     if (!firebaseSyncEnabled) {
-      // Mantém a sessão salva para tentar restaurar quando o Firestore reconectar.
+      // Mantém a sessão em storage para restoreSession() validar novamente após o Firestore reconectar.
       updateAppVisibility();
       return;
     }
