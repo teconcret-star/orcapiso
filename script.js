@@ -10,6 +10,8 @@ const LEGACY_DRAFT_STORAGE_KEY = "proposta_rascunho_v1";
 const DRAFT_STORAGE_KEY_PREFIX = "proposta_rascunho_usuario_v1_";
 const WORKER_MODE_AUTO = "auto";
 const WORKER_MODE_MANUAL = "manual";
+const CONTRACT_TYPE_LABOR = "mao_de_obra";
+const CONTRACT_TYPE_LABOR_MATERIAL = "mao_de_obra_material";
 const ROLE_ADMIN = "admin";
 const ROLE_SELLER = "seller";
 const DEFAULT_FILIAL = "Matriz";
@@ -230,7 +232,11 @@ function pluralize(count, singular, plural) {
 }
 
 function getTipoContratacaoLabel(value) {
-  return value === "mao_de_obra_material" ? "Mão de obra e material" : "Apenas mão de obra";
+  const labels = {
+    [CONTRACT_TYPE_LABOR]: "Apenas mão de obra",
+    [CONTRACT_TYPE_LABOR_MATERIAL]: "Mão de obra e material"
+  };
+  return labels[value] || labels[CONTRACT_TYPE_LABOR];
 }
 
 function createUniqueId() {
@@ -2833,7 +2839,10 @@ function calcularOrcamento() {
   const consumoCaminhao = toNumber($("consumoCaminhao").value);
   const pedagioCaminhao = toNumber($("pedagioCaminhao").value);
   const viagensCaminhao = toNumber($("viagensCaminhao").value);
-  const quantidadeCaminhoes = toPositiveIntegerOrFallback($("quantidadeCaminhoes").value, viagensCaminhao > 0 ? 1 : 0);
+  const quantidadeCaminhoesInformada = toPositiveIntegerOrFallback($("quantidadeCaminhoes").value, 0);
+  const quantidadeCaminhoes = quantidadeCaminhoesInformada > 0 || viagensCaminhao <= 0
+    ? quantidadeCaminhoesInformada
+    : 1;
   const gastoLogisticoPessoal = toNumber($("gastoLogisticoPessoal").value);
   const gastoLogisticoMaquinario = toNumber($("gastoLogisticoMaquinario").value);
   const valorDia = toNumber($("valorDia").value);
@@ -2906,7 +2915,7 @@ function calcularOrcamento() {
   const distanciaTotal = distancia * multiplicadorViagens;
   const custoCombustivel = consumo > 0 ? ((distanciaTotal / consumo) * precoCombustivel) * quantidadeVeiculos : 0;
   const custoPedagio = pedagio * multiplicadorViagens * quantidadeVeiculos;
-  const multiplicadorViagensCaminhao = viagensCaminhao > 0 ? viagensCaminhao : 0;
+  const multiplicadorViagensCaminhao = viagensCaminhao;
   const distanciaTotalCaminhao = distancia * multiplicadorViagensCaminhao;
   const custoCombustivelCaminhao = consumoCaminhao > 0
     ? ((distanciaTotalCaminhao / consumoCaminhao) * precoCombustivel) * quantidadeCaminhoes
@@ -3006,7 +3015,7 @@ function calcularOrcamento() {
   $("resDeslocamento").textContent = formatMoney(custoDeslocamento);
   $("resMaoDeObra").textContent = formatMoney(custoMaoDeObra);
   $("resFuncionarios").textContent = usaCronogramaAtividades
-    ? `${funcionariosConsiderados} (pico) / ${formatNumber(funcionarioDias)} funcionário-dia`
+    ? `${funcionariosConsiderados} (pico) / ${formatNumber(funcionarioDias)} ${pluralize(funcionarioDias, "funcionário-dia", "funcionários-dia")}`
     : String(funcionariosSelecionados);
   $("resAlimentacao").textContent = formatMoney(custoAlimentacao);
   $("resHotel").textContent = formatMoney(custoHotel);
@@ -3439,7 +3448,7 @@ function limparCampos() {
   $("modoFuncionarios").value = WORKER_MODE_AUTO;
   $("pisoTela").value = "sem_tela";
   $("curaQuimica").value = "sem_cura";
-  $("tipoContratacao").value = "mao_de_obra";
+  $("tipoContratacao").value = CONTRACT_TYPE_LABOR;
   $("equipamentosTipo").value = EQUIPAMENTOS_TIPO_PROPRIOS;
   $("impostoPercentual").value = DEFAULT_IMPOSTO_PERCENTUAL;
   $("propostaStatus").value = PROPOSAL_STATUS_EM_ANDAMENTO;
