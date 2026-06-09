@@ -1489,11 +1489,13 @@ function getSession() {
 }
 
 function saveSession(userId) {
+  removeLegacyStorageItem(SESSION_STORAGE_KEY);
   const session = { userId };
   const success = writeJsonStorage(SESSION_STORAGE_KEY, session);
   try {
     window.localStorage?.setItem?.(SESSION_STORAGE_KEY, JSON.stringify(session));
-  } catch {
+  } catch (error) {
+    console.warn("Falha ao persistir sessão no navegador:", error);
     showToast("Sessão ativa apenas nesta aba. Ao recarregar, será necessário entrar novamente.", true);
   }
   return success;
