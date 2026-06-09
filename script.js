@@ -35,6 +35,12 @@ const FIRESTORE_PROPOSALS_DOC = "proposals";
 const FIRESTORE_CLIENTS_DOC = "clients";
 const FIRESTORE_MACHINE_DB_DOC = "machineDatabase";
 const FIRESTORE_DRAFT_DOC_PREFIX = "draft_";
+const FIRESTORE_USERS_COLLECTION = "usuarios";
+const FIRESTORE_PROPOSALS_COLLECTION = "propostas";
+const FIRESTORE_CLIENTS_COLLECTION = "clientes";
+const FIRESTORE_USERS_SYNC_DOC = "collection_usuarios";
+const FIRESTORE_PROPOSALS_SYNC_DOC = "collection_propostas";
+const FIRESTORE_CLIENTS_SYNC_DOC = "collection_clientes";
 const FIRESTORE_SETTINGS = {
   experimentalAutoDetectLongPolling: true,
   useFetchStreams: false
@@ -155,6 +161,9 @@ function getFirestoreStorageKey(docId) {
   if (docId === FIRESTORE_PROPOSALS_DOC) return PROPOSALS_STORAGE_KEY;
   if (docId === FIRESTORE_CLIENTS_DOC) return CLIENTS_STORAGE_KEY;
   if (docId === FIRESTORE_MACHINE_DB_DOC) return MACHINE_DB_STORAGE_KEY;
+  if (docId === FIRESTORE_USERS_SYNC_DOC) return USERS_STORAGE_KEY;
+  if (docId === FIRESTORE_PROPOSALS_SYNC_DOC) return PROPOSALS_STORAGE_KEY;
+  if (docId === FIRESTORE_CLIENTS_SYNC_DOC) return CLIENTS_STORAGE_KEY;
   if (docId?.startsWith?.(FIRESTORE_DRAFT_DOC_PREFIX)) {
     const userId = docId.slice(FIRESTORE_DRAFT_DOC_PREFIX.length);
     return userId ? `${DRAFT_STORAGE_KEY_PREFIX}${userId}` : "";
@@ -207,7 +216,7 @@ function persistPendingSyncQueue() {
 function seedRuntimeStorageFromPendingDoc(docId, value) {
   const storageKey = getFirestoreStorageKey(docId);
   if (!storageKey) return;
-  if (docId === FIRESTORE_USERS_DOC && Array.isArray(value)) {
+  if ((docId === FIRESTORE_USERS_DOC || docId === FIRESTORE_USERS_SYNC_DOC) && Array.isArray(value)) {
     usersCache = normalizeUsersForStorage(value);
     return;
   }
@@ -234,6 +243,20 @@ function loadPendingSyncQueueFromStorage() {
 function getPendingSyncValue(docId) {
   if (!pendingSyncQueue.has(docId)) return undefined;
   return cloneStorageValue(pendingSyncQueue.get(docId).value);
+}
+
+function getFirestoreCollectionSyncDocId(collectionName) {
+  if (collectionName === FIRESTORE_USERS_COLLECTION) return FIRESTORE_USERS_SYNC_DOC;
+  if (collectionName === FIRESTORE_PROPOSALS_COLLECTION) return FIRESTORE_PROPOSALS_SYNC_DOC;
+  if (collectionName === FIRESTORE_CLIENTS_COLLECTION) return FIRESTORE_CLIENTS_SYNC_DOC;
+  return "";
+}
+
+function getFirestoreCollectionNameFromSyncDocId(docId) {
+  if (docId === FIRESTORE_USERS_SYNC_DOC) return FIRESTORE_USERS_COLLECTION;
+  if (docId === FIRESTORE_PROPOSALS_SYNC_DOC) return FIRESTORE_PROPOSALS_COLLECTION;
+  if (docId === FIRESTORE_CLIENTS_SYNC_DOC) return FIRESTORE_CLIENTS_COLLECTION;
+  return "";
 }
 
 function shouldSkipFirestoreSnapshot(docId, snap) {
@@ -571,6 +594,15 @@ function clearFirebaseReconnectTimeout() {
   firebaseReconnectTimeoutId = null;
 }
 
+function retryPendingFirestoreSync(docId, value) {
+  const collectionName = getFirestoreCollectionNameFromSyncDocId(docId);
+  if (collectionName) {
+    syncFirestoreCollectionRecords(collectionName, value);
+    return;
+  }
+  syncFirestoreDoc(docId, value);
+}
+
 function startPendingSyncCheck() {
   // Periodically check and sync pending draft data and failed document syncs
   if (documentSyncCheckIntervalId) return;
@@ -591,7 +623,7 @@ function startPendingSyncCheck() {
       for (const [docId, entry] of pendingSyncQueue.entries()) {
         if (now >= entry.nextRetryTime) {
           console.log(`[Firebase Sync] Retentando sincronizar ${docId} (tentativa ${entry.retries + 1}/${SYNC_MAX_RETRIES})...`);
-          syncFirestoreDoc(docId, entry.value);
+          retryPendingFirestoreSync(docId, entry.value);
         }
       }
     }
@@ -638,7 +670,7 @@ async function reconnectFirebase() {
         console.log(`[Firebase Sync] Sincronizando ${pendingSyncQueue.size} documentos da fila de retentativa...`);
         for (const [docId, entry] of pendingSyncQueue.entries()) {
           console.log(`[Firebase Sync] Sincronizando ${docId} da fila de retentativa...`);
-          syncFirestoreDoc(docId, entry.value);
+          retryPendingFirestoreSync(docId, entry.value);
         }
       }
 
@@ -800,6 +832,25 @@ function getFirestoreDoc(docId) {
   return firestoreDb.collection(FIRESTORE_COLLECTION).doc(docId);
 }
 
+function getFirestoreCollection(collectionName) {
+  if (!firebaseSyncEnabled || !firestoreDb) return null;
+  return firestoreDb.collection(collectionName);
+}
+
+function sortFirestoreCollectionRecords(collectionName, records) {
+  const list = Array.isArray(records) ? [...records] : [];
+  if (collectionName === FIRESTORE_USERS_COLLECTION) {
+    return list.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+  }
+  if (collectionName === FIRESTORE_PROPOSALS_COLLECTION) {
+    return list.sort((a, b) => toNumber(b.timestamp) - toNumber(a.timestamp));
+  }
+  if (collectionName === FIRESTORE_CLIENTS_COLLECTION) {
+    return list.sort((a, b) => toNumber(b.updatedAt || b.createdAt) - toNumber(a.updatedAt || a.createdAt));
+  }
+  return list;
+}
+
 async function readFirestoreDoc(docId, fallback) {
   const ref = getFirestoreDoc(docId);
   if (!ref) {
@@ -823,6 +874,32 @@ async function readFirestoreDoc(docId, fallback) {
   } catch (error) {
     console.error(`[Firebase Read] ✗ Erro ao ler ${docId}:`, error?.code, error?.message);
     handleFirebaseConnectionError(`Falha ao ler ${docId}:`, error);
+    return fallback;
+  }
+}
+
+async function readFirestoreCollectionRecords(collectionName, fallback = []) {
+  const ref = getFirestoreCollection(collectionName);
+  if (!ref) {
+    console.warn(`[Firebase Read] Não foi possível obter referência para a coleção ${collectionName}`);
+    return fallback;
+  }
+  try {
+    console.debug(`[Firebase Read] Lendo coleção ${collectionName}...`);
+    const snap = await withTimeout(
+      ref.get(),
+      FIREBASE_OPERATION_TIMEOUT_MS,
+      `Tempo esgotado ao ler coleção ${collectionName}`
+    );
+    const records = [];
+    snap.forEach((docSnap) => {
+      records.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    console.log(`[Firebase Read] ✓ Sucesso ao ler coleção ${collectionName}`);
+    return sortFirestoreCollectionRecords(collectionName, records);
+  } catch (error) {
+    console.error(`[Firebase Read] ✗ Erro ao ler coleção ${collectionName}:`, error?.code, error?.message);
+    handleFirebaseConnectionError(`Falha ao ler coleção ${collectionName}:`, error);
     return fallback;
   }
 }
@@ -854,6 +931,58 @@ function syncFirestoreDoc(docId, value) {
     .catch((error) => {
       console.warn(`[Firebase Sync] ✗ Erro ao sincronizar ${docId}:`, error?.code, error?.message);
       handleFirebaseSyncError(docId, error, value);
+    });
+}
+
+function syncFirestoreCollectionRecords(collectionName, records) {
+  const syncDocId = getFirestoreCollectionSyncDocId(collectionName);
+  const list = Array.isArray(records) ? records : [];
+  const ref = getFirestoreCollection(collectionName);
+  if (!ref) {
+    console.debug(`[Firebase Sync] Firestore não conectado, adicionando coleção ${collectionName} à fila de retentativa`);
+    if (syncDocId) handleFirebaseSyncError(syncDocId, new Error("Firestore not connected"), list);
+    return Promise.resolve();
+  }
+
+  if (!syncDocId) return Promise.resolve();
+  console.debug(`[Firebase Sync] Sincronizando coleção ${collectionName}...`);
+  markPendingFirestoreSync(syncDocId, list);
+
+  const writePromise = ref.get().then((snap) => {
+    const batch = firestoreDb.batch();
+    const currentIds = new Set();
+    snap.forEach((docSnap) => currentIds.add(docSnap.id));
+
+    list.forEach((record) => {
+      const id = record?.id || createUniqueId();
+      const payload = { ...record, id };
+      currentIds.delete(id);
+      batch.set(ref.doc(id), payload);
+    });
+
+    currentIds.forEach((id) => {
+      batch.delete(ref.doc(id));
+    });
+
+    return batch.commit();
+  });
+
+  return withTimeout(
+    writePromise,
+    FIREBASE_OPERATION_TIMEOUT_MS,
+    `Tempo esgotado ao sincronizar coleção ${collectionName}`
+  )
+    .then(() => {
+      console.log(`[Firebase Sync] ✓ Sucesso ao sincronizar coleção ${collectionName}`);
+      if (pendingSyncQueue.has(syncDocId)) {
+        pendingSyncQueue.delete(syncDocId);
+        persistPendingSyncQueue();
+        console.log(`[Firebase Sync] Removido ${syncDocId} da fila de retentativa`);
+      }
+    })
+    .catch((error) => {
+      console.warn(`[Firebase Sync] ✗ Erro ao sincronizar coleção ${collectionName}:`, error?.code, error?.message);
+      handleFirebaseSyncError(syncDocId, error, list);
     });
 }
 
@@ -976,8 +1105,6 @@ function subscribeFirestoreChanges() {
   if (!firebaseSyncEnabled || !firestoreDb) return;
 
   const col = firestoreDb.collection(FIRESTORE_COLLECTION);
-
-  // Initialize missing documents with current local data to ensure they exist
   const initializeDocument = (docId, defaultValue) => {
     col.doc(docId).get().then((snap) => {
       if (!snap.exists) {
@@ -990,71 +1117,59 @@ function subscribeFirestoreChanges() {
     });
   };
 
-  // Initialize documents that don't exist yet
-  initializeDocument(FIRESTORE_USERS_DOC, usersCache);
-  initializeDocument(FIRESTORE_PROPOSALS_DOC, readJsonStorage(PROPOSALS_STORAGE_KEY, []));
-  initializeDocument(FIRESTORE_CLIENTS_DOC, readJsonStorage(CLIENTS_STORAGE_KEY, []));
   initializeDocument(FIRESTORE_MACHINE_DB_DOC, readJsonStorage(MACHINE_DB_STORAGE_KEY, DEFAULT_MACHINE_DATABASE));
 
-  firestoreUnsubscribers.push(
-    col.doc(FIRESTORE_USERS_DOC).onSnapshot((snap) => {
-      if (!snap.exists) return;
-      if (shouldSkipFirestoreSnapshot(FIRESTORE_USERS_DOC, snap)) return;
-      const data = snap.data()?.data;
-      if (!Array.isArray(data)) return;
-      removeLegacyStorageItem(USERS_STORAGE_KEY);
-      const normalizedUsers = normalizeUsersForStorage(data);
-      if (shouldPreserveUsersCache(normalizedUsers)) {
-        console.warn(PRESERVE_USERS_CACHE_WARNING);
-        return;
-      }
-      usersCache = normalizedUsers;
-      if (currentUserId) {
-        refreshCurrentUser();
-        renderUsersTable();
-        renderClientsTable();
-        populateProposalClientSelect();
-        updateSessionInfo();
-        updateAppVisibility();
-      }
-    }, (error) => {
-      handleFirebaseConnectionError("Erro ao escutar usuários:", error);
-    })
-  );
+  const subscribeRecordCollection = (collectionName, onRecords, errorMessage) => {
+    const collectionRef = getFirestoreCollection(collectionName);
+    if (!collectionRef) return;
+    firestoreUnsubscribers.push(
+      collectionRef.onSnapshot((snapshot) => {
+        const records = [];
+        snapshot.forEach((docSnap) => {
+          records.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        onRecords(sortFirestoreCollectionRecords(collectionName, records));
+      }, (error) => {
+        handleFirebaseConnectionError(errorMessage, error);
+      })
+    );
+  };
 
-  firestoreUnsubscribers.push(
-    col.doc(FIRESTORE_PROPOSALS_DOC).onSnapshot((snap) => {
-      if (!snap.exists) return;
-      if (shouldSkipFirestoreSnapshot(FIRESTORE_PROPOSALS_DOC, snap)) return;
-      const data = snap.data()?.data;
-      if (!Array.isArray(data)) return;
-      writeJsonStorage(PROPOSALS_STORAGE_KEY, data);
-      removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
-      if (currentUserId) {
-        renderizarTabelaPropostas();
-        renderDashboard();
-      }
-    }, (error) => {
-      handleFirebaseConnectionError("Erro ao escutar propostas:", error);
-    })
-  );
+  subscribeRecordCollection(FIRESTORE_USERS_COLLECTION, (records) => {
+    const normalizedUsers = normalizeUsersForStorage(records);
+    if (shouldPreserveUsersCache(normalizedUsers)) {
+      console.warn(PRESERVE_USERS_CACHE_WARNING);
+      return;
+    }
+    usersCache = normalizedUsers;
+    removeLegacyStorageItem(USERS_STORAGE_KEY);
+    if (currentUserId) {
+      refreshCurrentUser();
+      renderUsersTable();
+      renderClientsTable();
+      populateProposalClientSelect();
+      updateSessionInfo();
+      updateAppVisibility();
+    }
+  }, "Erro ao escutar usuários:");
 
-  firestoreUnsubscribers.push(
-    col.doc(FIRESTORE_CLIENTS_DOC).onSnapshot((snap) => {
-      if (!snap.exists) return;
-      if (shouldSkipFirestoreSnapshot(FIRESTORE_CLIENTS_DOC, snap)) return;
-      const data = snap.data()?.data;
-      if (!Array.isArray(data)) return;
-      writeJsonStorage(CLIENTS_STORAGE_KEY, data);
-      removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
-      if (currentUserId) {
-        renderClientsTable();
-        populateProposalClientSelect();
-      }
-    }, (error) => {
-      handleFirebaseConnectionError("Erro ao escutar clientes:", error);
-    })
-  );
+  subscribeRecordCollection(FIRESTORE_PROPOSALS_COLLECTION, (records) => {
+    writeJsonStorage(PROPOSALS_STORAGE_KEY, records);
+    removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
+    if (currentUserId) {
+      renderizarTabelaPropostas();
+      renderDashboard();
+    }
+  }, "Erro ao escutar propostas:");
+
+  subscribeRecordCollection(FIRESTORE_CLIENTS_COLLECTION, (records) => {
+    writeJsonStorage(CLIENTS_STORAGE_KEY, records);
+    removeLegacyStorageItem(CLIENTS_STORAGE_KEY);
+    if (currentUserId) {
+      renderClientsTable();
+      populateProposalClientSelect();
+    }
+  }, "Erro ao escutar clientes:");
 
   firestoreUnsubscribers.push(
     col.doc(FIRESTORE_MACHINE_DB_DOC).onSnapshot((snap) => {
@@ -1118,17 +1233,28 @@ async function bootstrapStorageFromFirebase() {
   if (!firebaseSyncEnabled) return;
 
   try {
-    const [users, proposals, clients, machineDb] = await Promise.all([
+    const [
+      usersCollection,
+      proposalsCollection,
+      clientsCollection,
+      machineDb,
+      legacyUsersDoc,
+      legacyProposalsDoc,
+      legacyClientsDoc
+    ] = await Promise.all([
+      readFirestoreCollectionRecords(FIRESTORE_USERS_COLLECTION, []),
+      readFirestoreCollectionRecords(FIRESTORE_PROPOSALS_COLLECTION, []),
+      readFirestoreCollectionRecords(FIRESTORE_CLIENTS_COLLECTION, []),
+      readFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, null),
       readFirestoreDoc(FIRESTORE_USERS_DOC, null),
       readFirestoreDoc(FIRESTORE_PROPOSALS_DOC, null),
-      readFirestoreDoc(FIRESTORE_CLIENTS_DOC, null),
-      readFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, null)
+      readFirestoreDoc(FIRESTORE_CLIENTS_DOC, null)
     ]);
 
-    // Initialize or restore users and ensure Firestore document exists
-    const pendingUsers = getPendingSyncValue(FIRESTORE_USERS_DOC);
-    if (Array.isArray(pendingUsers) || (users && Array.isArray(users))) {
-      const normalizedUsers = normalizeUsersForStorage(Array.isArray(pendingUsers) ? pendingUsers : users);
+    const pendingUsers = getPendingSyncValue(FIRESTORE_USERS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_USERS_DOC);
+    const remoteUsers = usersCollection.length ? usersCollection : legacyUsersDoc;
+    if (Array.isArray(pendingUsers) || Array.isArray(remoteUsers)) {
+      const normalizedUsers = normalizeUsersForStorage(Array.isArray(pendingUsers) ? pendingUsers : remoteUsers);
       if (shouldPreserveUsersCache(normalizedUsers)) {
         console.warn(PRESERVE_USERS_CACHE_WARNING);
       } else {
@@ -1144,10 +1270,10 @@ async function bootstrapStorageFromFirebase() {
     }
     removeLegacyStorageItem(USERS_STORAGE_KEY);
 
-    // Initialize or restore proposals and ensure Firestore document exists
-    const pendingProposals = getPendingSyncValue(FIRESTORE_PROPOSALS_DOC);
-    if (Array.isArray(pendingProposals) || (proposals && Array.isArray(proposals))) {
-      writeJsonStorage(PROPOSALS_STORAGE_KEY, Array.isArray(pendingProposals) ? pendingProposals : proposals);
+    const pendingProposals = getPendingSyncValue(FIRESTORE_PROPOSALS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_PROPOSALS_DOC);
+    const remoteProposals = proposalsCollection.length ? proposalsCollection : legacyProposalsDoc;
+    if (Array.isArray(pendingProposals) || Array.isArray(remoteProposals)) {
+      writeJsonStorage(PROPOSALS_STORAGE_KEY, Array.isArray(pendingProposals) ? pendingProposals : remoteProposals);
     } else {
       const legacyProposals = readLegacyJsonStorage(PROPOSALS_STORAGE_KEY, null);
       const currentProposals = readJsonStorage(PROPOSALS_STORAGE_KEY, []);
@@ -1161,10 +1287,10 @@ async function bootstrapStorageFromFirebase() {
     }
     removeLegacyStorageItem(PROPOSALS_STORAGE_KEY);
 
-    // Initialize or restore clients and ensure Firestore document exists
-    const pendingClients = getPendingSyncValue(FIRESTORE_CLIENTS_DOC);
-    if (Array.isArray(pendingClients) || (clients && Array.isArray(clients))) {
-      writeJsonStorage(CLIENTS_STORAGE_KEY, Array.isArray(pendingClients) ? pendingClients : clients);
+    const pendingClients = getPendingSyncValue(FIRESTORE_CLIENTS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_CLIENTS_DOC);
+    const remoteClients = clientsCollection.length ? clientsCollection : legacyClientsDoc;
+    if (Array.isArray(pendingClients) || Array.isArray(remoteClients)) {
+      writeJsonStorage(CLIENTS_STORAGE_KEY, Array.isArray(pendingClients) ? pendingClients : remoteClients);
     } else {
       const legacyClients = readLegacyJsonStorage(CLIENTS_STORAGE_KEY, null);
       const currentClients = readJsonStorage(CLIENTS_STORAGE_KEY, []);
@@ -1199,9 +1325,9 @@ async function bootstrapStorageFromFirebase() {
 
     // Sync all data to Firestore in parallel to ensure documents exist
     await Promise.all([
-      syncFirestoreDocAsync(FIRESTORE_USERS_DOC, usersCache),
-      syncFirestoreDocAsync(FIRESTORE_PROPOSALS_DOC, readJsonStorage(PROPOSALS_STORAGE_KEY, [])),
-      syncFirestoreDocAsync(FIRESTORE_CLIENTS_DOC, readJsonStorage(CLIENTS_STORAGE_KEY, [])),
+      syncFirestoreCollectionRecords(FIRESTORE_USERS_COLLECTION, usersCache),
+      syncFirestoreCollectionRecords(FIRESTORE_PROPOSALS_COLLECTION, readJsonStorage(PROPOSALS_STORAGE_KEY, [])),
+      syncFirestoreCollectionRecords(FIRESTORE_CLIENTS_COLLECTION, readJsonStorage(CLIENTS_STORAGE_KEY, [])),
       syncFirestoreDocAsync(FIRESTORE_MACHINE_DB_DOC, normalizedMachineDb)
     ]);
   } catch (error) {
@@ -1556,7 +1682,7 @@ function getUsers() {
 function saveUsers(list) {
   const normalizedList = normalizeUsersForStorage(list);
   usersCache = normalizedList;
-  syncFirestoreDoc(FIRESTORE_USERS_DOC, normalizedList);
+  syncFirestoreCollectionRecords(FIRESTORE_USERS_COLLECTION, normalizedList);
   return true;
 }
 
@@ -1566,7 +1692,7 @@ function getSavedProposals() {
 
 function saveProposals(list) {
   const success = writeJsonStorage(PROPOSALS_STORAGE_KEY, list);
-  if (success) syncFirestoreDoc(FIRESTORE_PROPOSALS_DOC, list);
+  if (success) syncFirestoreCollectionRecords(FIRESTORE_PROPOSALS_COLLECTION, list);
   return success;
 }
 
@@ -1581,7 +1707,7 @@ function saveClients(list) {
     .map(normalizeClientRecord)
     .filter(Boolean);
   const success = writeJsonStorage(CLIENTS_STORAGE_KEY, normalized);
-  if (success) syncFirestoreDoc(FIRESTORE_CLIENTS_DOC, normalized);
+  if (success) syncFirestoreCollectionRecords(FIRESTORE_CLIENTS_COLLECTION, normalized);
   return success;
 }
 
