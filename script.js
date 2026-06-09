@@ -1090,8 +1090,8 @@ async function init() {
   atualizarCampoCuraQuimica({ preserveValueWhenDisabled: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
   atualizarCampoStatusProposta({ preserveValueWhenHidden: false });
-  if (!$(\"propostaTextoPadrao\").value.trim()) {
-    $(\"propostaTextoPadrao\").value = DEFAULT_STANDARD_TEXT;
+  if (!$("propostaTextoPadrao").value.trim()) {
+    $("propostaTextoPadrao").value = DEFAULT_STANDARD_TEXT;
   }
   calcularOrcamento();
 }
