@@ -49,6 +49,9 @@ const HEX_BYTE_LENGTH = 2;
 const FIREBASE_INIT_CONNECTION_DELAY_MS = 1000;
 const FIREBASE_OPERATION_TIMEOUT_MS = 5000;
 const FIREBASE_RECONNECT_DELAY_MS = 3000;
+const FIREBASE_STATUS_CONNECTED = "connected";
+const FIREBASE_STATUS_RECONNECTING = "reconnecting";
+const FIREBASE_STATUS_DISCONNECTED = "disconnected";
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const IFRAME_CLEANUP_DELAY_MS = 600;
 const IFRAME_PRINT_FALLBACK_TIMEOUT_MS = 2000;
@@ -570,14 +573,29 @@ function writeDraftPayloadToStorage(payload, userId = currentUserId) {
   return writeJsonStorage(getDraftStorageKey(userId), normalized);
 }
 
-function updateFirebaseStatus(connected) {
+function updateFirebaseStatus(status) {
   const el = $("firebaseStatus");
   if (!el) return;
-  el.textContent = connected ? "☁ Firebase: conectado" : "⚠ Firebase: desconectado";
-  el.className = connected ? "firebase-status firebase-status-ok" : "firebase-status firebase-status-off";
-  el.title = connected
-    ? "Dados sincronizados com o servidor"
-    : "Sem conexão com o servidor — alterações de tabelas ficam na fila local e serão enviadas ao reconectar";
+  const normalizedStatus = status === true
+    ? FIREBASE_STATUS_CONNECTED
+    : status === false
+      ? FIREBASE_STATUS_DISCONNECTED
+      : status;
+  if (normalizedStatus === FIREBASE_STATUS_CONNECTED) {
+    el.textContent = "☁ Firebase: conectado";
+    el.className = "firebase-status firebase-status-ok";
+    el.title = "Dados sincronizados com o servidor";
+    return;
+  }
+  if (normalizedStatus === FIREBASE_STATUS_RECONNECTING) {
+    el.textContent = "☁ Firebase: reconectando…";
+    el.className = "firebase-status firebase-status-syncing";
+    el.title = "Conexão com o servidor instável — tentando restabelecer sem perder dados";
+    return;
+  }
+  el.textContent = "⚠ Firebase: desconectado";
+  el.className = "firebase-status firebase-status-off";
+  el.title = "Sem conexão com o servidor — alterações de tabelas ficam na fila local e serão enviadas ao reconectar";
 }
 
 function clearFirestoreListeners() {
@@ -693,10 +711,10 @@ async function reconnectFirebase() {
 function scheduleFirebaseReconnect() {
   if (firebaseReconnectTimeoutId != null) return;
   if (!window.firebase?.firestore) {
-    updateFirebaseStatus(false);
+    updateFirebaseStatus(FIREBASE_STATUS_DISCONNECTED);
     return;
   }
-  updateFirebaseStatus(false);
+  updateFirebaseStatus(FIREBASE_STATUS_RECONNECTING);
   firebaseReconnectTimeoutId = window.setTimeout(async () => {
     firebaseReconnectTimeoutId = null;
     try {
@@ -714,7 +732,11 @@ function handleFirebaseConnectionError(message, error) {
   firestoreDb = null;
   firebaseSyncEnabled = false;
   clearFirestoreListeners();
-  updateFirebaseStatus(false);
+  if (!window.firebase?.firestore || window.navigator?.onLine === false) {
+    updateFirebaseStatus(FIREBASE_STATUS_DISCONNECTED);
+  } else {
+    updateFirebaseStatus(FIREBASE_STATUS_RECONNECTING);
+  }
   scheduleFirebaseReconnect();
 }
 
