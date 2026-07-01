@@ -683,6 +683,10 @@ function refreshAppFromStorage() {
   renderDashboard();
 }
 
+function isFirebaseConnectionReady() {
+  return Boolean(firebaseSyncEnabled && firestoreDb);
+}
+
 async function reconnectFirebase() {
   if (firebaseReconnectPromise) return firebaseReconnectPromise;
 
@@ -711,6 +715,7 @@ async function reconnectFirebase() {
       } else {
         await restoreSession();
       }
+      updateFirebaseStatus(FIREBASE_STATUS_CONNECTED);
       return true;
     } catch (error) {
       handleFirebaseConnectionError("Falha ao sincronizar dados após reconectar Firebase:", error);
@@ -851,8 +856,8 @@ function initializeFirebaseConnection() {
     }
     firebaseSyncEnabled = true;
     clearFirebaseReconnectTimeout();
-    console.log("[Firebase Init] ✓ Firebase conectado com sucesso");
-    updateFirebaseStatus(true);
+    console.log("[Firebase Init] ✓ Firebase inicializado; aguardando sincronização inicial");
+    updateFirebaseStatus(FIREBASE_STATUS_RECONNECTING);
     return true;
   } catch (error) {
     console.error("[Firebase Init] ✗ Erro ao inicializar Firebase:", error?.code, error?.message);
@@ -4689,6 +4694,14 @@ function bindStaticEvents() {
   });
 
   window.addEventListener("online", () => {
+    if (isFirebaseConnectionReady() && !firebaseReconnectPromise && firebaseReconnectTimeoutId === null) {
+      bootstrapStorageFromFirebase().then(() => {
+        if (currentUserId) refreshAppFromStorage();
+      }).catch((error) => {
+        handleFirebaseConnectionError("Falha ao sincronizar dados ao voltar a conexão:", error);
+      });
+      return;
+    }
     reconnectFirebase().then((connected) => {
       if (!connected) {
         scheduleFirebaseReconnect();
@@ -4714,6 +4727,7 @@ async function init() {
     await new Promise((resolve) => setTimeout(resolve, FIREBASE_INIT_CONNECTION_DELAY_MS));
     await bootstrapStorageFromFirebase();
     subscribeFirestoreChanges();
+    updateFirebaseStatus(FIREBASE_STATUS_CONNECTED);
     await ensureAdminExists();
     limparFormularioBancoDadosEstimativas();
     updateAppVisibility();
