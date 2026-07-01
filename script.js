@@ -279,6 +279,14 @@ function shouldSkipFirestoreSnapshot(docId, snap) {
   return pendingSyncQueue.has(docId) && !snap.metadata?.hasPendingWrites;
 }
 
+function mergeFirestoreCollectionData(remoteRecords, pendingRecords) {
+  const base = Array.isArray(remoteRecords) ? remoteRecords : [];
+  if (!Array.isArray(pendingRecords) || !pendingRecords.length) return base;
+  const remoteIds = new Set(base.map((r) => r?.id).filter(Boolean));
+  const unsynced = pendingRecords.filter((r) => r?.id && !remoteIds.has(r.id));
+  return unsynced.length > 0 ? [...base, ...unsynced] : base;
+}
+
 function markPendingFirestoreSync(docId, value) {
   const existingEntry = pendingSyncQueue.get(docId);
   pendingSyncQueue.set(docId, {
@@ -1205,7 +1213,20 @@ function subscribeFirestoreChanges() {
         snapshot.forEach((docSnap) => {
           records.push({ id: docSnap.id, ...docSnap.data() });
         });
-        onRecords(sortFirestoreCollectionRecords(collectionName, records));
+        const sorted = sortFirestoreCollectionRecords(collectionName, records);
+        // When the server confirms the snapshot, update the pending entry so that
+        // stale retries don't overwrite newer server data. Only records absent
+        // from the server (genuinely unsynced) are kept in the pending value.
+        if (!snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites) {
+          const syncDocId = getFirestoreCollectionSyncDocId(collectionName);
+          if (syncDocId && pendingSyncQueue.has(syncDocId)) {
+            const entry = pendingSyncQueue.get(syncDocId);
+            const merged = mergeFirestoreCollectionData(sorted, entry.value);
+            pendingSyncQueue.set(syncDocId, { ...entry, value: merged });
+            persistPendingSyncQueue();
+          }
+        }
+        onRecords(sorted);
       }, (error) => {
         handleFirebaseConnectionError(errorMessage, error);
       })
@@ -1328,7 +1349,9 @@ async function bootstrapStorageFromFirebase() {
     const pendingUsers = getPendingSyncValue(FIRESTORE_USERS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_USERS_DOC);
     const remoteUsers = chooseFirestoreCollectionSource(usersCollection, legacyUsersDoc);
     if (Array.isArray(pendingUsers) || Array.isArray(remoteUsers)) {
-      const normalizedUsers = normalizeUsersForStorage(Array.isArray(pendingUsers) ? pendingUsers : remoteUsers);
+      // Always start from server data; only add locally-pending records not yet on the server.
+      const mergedUsers = mergeFirestoreCollectionData(remoteUsers, pendingUsers);
+      const normalizedUsers = normalizeUsersForStorage(mergedUsers);
       if (shouldPreserveUsersCache(normalizedUsers)) {
         console.warn(PRESERVE_USERS_CACHE_WARNING);
       } else {
@@ -1347,7 +1370,8 @@ async function bootstrapStorageFromFirebase() {
     const pendingProposals = getPendingSyncValue(FIRESTORE_PROPOSALS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_PROPOSALS_DOC);
     const remoteProposals = chooseFirestoreCollectionSource(proposalsCollection, legacyProposalsDoc);
     if (Array.isArray(pendingProposals) || Array.isArray(remoteProposals)) {
-      writeJsonStorage(PROPOSALS_STORAGE_KEY, Array.isArray(pendingProposals) ? pendingProposals : remoteProposals);
+      // Always start from server data; only add locally-pending records not yet on the server.
+      writeJsonStorage(PROPOSALS_STORAGE_KEY, mergeFirestoreCollectionData(remoteProposals, pendingProposals));
     } else {
       const legacyProposals = readLegacyJsonStorage(PROPOSALS_STORAGE_KEY, null);
       const currentProposals = readJsonStorage(PROPOSALS_STORAGE_KEY, []);
@@ -1364,7 +1388,8 @@ async function bootstrapStorageFromFirebase() {
     const pendingClients = getPendingSyncValue(FIRESTORE_CLIENTS_SYNC_DOC) ?? getPendingSyncValue(FIRESTORE_CLIENTS_DOC);
     const remoteClients = chooseFirestoreCollectionSource(clientsCollection, legacyClientsDoc);
     if (Array.isArray(pendingClients) || Array.isArray(remoteClients)) {
-      writeJsonStorage(CLIENTS_STORAGE_KEY, Array.isArray(pendingClients) ? pendingClients : remoteClients);
+      // Always start from server data; only add locally-pending records not yet on the server.
+      writeJsonStorage(CLIENTS_STORAGE_KEY, mergeFirestoreCollectionData(remoteClients, pendingClients));
     } else {
       const legacyClients = readLegacyJsonStorage(CLIENTS_STORAGE_KEY, null);
       const currentClients = readJsonStorage(CLIENTS_STORAGE_KEY, []);
