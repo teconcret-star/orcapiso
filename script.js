@@ -4694,7 +4694,7 @@ function bindStaticEvents() {
   });
 
   window.addEventListener("online", () => {
-    if (isFirebaseConnectionReady() && !firebaseReconnectPromise && firebaseReconnectTimeoutId == null) {
+    if (isFirebaseConnectionReady() && !firebaseReconnectPromise && firebaseReconnectTimeoutId === null) {
       bootstrapStorageFromFirebase().then(() => {
         if (currentUserId) refreshAppFromStorage();
       }).catch((error) => {
