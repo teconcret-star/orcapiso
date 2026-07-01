@@ -279,6 +279,11 @@ function shouldSkipFirestoreSnapshot(docId, snap) {
   return pendingSyncQueue.has(docId) && !snap.metadata?.hasPendingWrites;
 }
 
+// Merges Firestore server records with locally-pending records. The server version
+// always wins for any record that already exists remotely (same ID). Only records
+// from pendingRecords whose IDs are absent from remoteRecords are appended, so
+// that genuinely unsynced local additions are not lost while stale overwrites are
+// prevented. For records with the same ID, the server copy is authoritative.
 function mergeFirestoreCollectionData(remoteRecords, pendingRecords) {
   const base = Array.isArray(remoteRecords) ? remoteRecords : [];
   if (!Array.isArray(pendingRecords) || !pendingRecords.length) return base;
