@@ -97,6 +97,11 @@ const MACHINE_DATABASE_FIELD_IDS = [
   "paramConsumoMaquinaSimples",
   "paramConsumoMaquinaCorte"
 ];
+const PROPOSAL_SERVICE_COLUMN_LABELS = {
+  service: "Serviço",
+  valuePerSquareMeter: "Valor por m²",
+  total: "Valor total"
+};
 const DEFAULT_MACHINE_DATABASE = {
   rendimentoFacasM2: 300,
   facasPorJogo: 4,
@@ -3127,10 +3132,14 @@ function renderServicosDetalhados(lines) {
   const fragment = document.createDocumentFragment();
   lines.forEach((item) => {
     const row = document.createElement("tr");
-    [["Serviço", item.label], ["Valor por m²", formatMoney(item.valorM2)], ["Valor total", formatMoney(item.total)]].forEach(([label, value]) => {
+    [
+      { label: PROPOSAL_SERVICE_COLUMN_LABELS.service, value: item.label },
+      { label: PROPOSAL_SERVICE_COLUMN_LABELS.valuePerSquareMeter, value: formatMoney(item.valorM2) },
+      { label: PROPOSAL_SERVICE_COLUMN_LABELS.total, value: formatMoney(item.total) }
+    ].forEach((column) => {
       const cell = document.createElement("td");
-      cell.dataset.label = label;
-      cell.textContent = value;
+      cell.dataset.label = column.label;
+      cell.textContent = column.value;
       row.appendChild(cell);
     });
     fragment.appendChild(row);
@@ -3261,8 +3270,8 @@ function calcularOrcamento() {
   const jogosDiscosEstimados = metragem > 0 && machineDb.rendimentoDiscoM2 > 0
     ? Math.ceil(metragem / machineDb.rendimentoDiscoM2)
     : 0;
-  const facasEstimadas = jogosFacasEstimados * Math.max(0, machineDb.facasPorJogo);
-  const discosEstimados = jogosDiscosEstimados * Math.max(0, machineDb.discosPorJogo);
+  const facasEstimadas = jogosFacasEstimados * machineDb.facasPorJogo;
+  const discosEstimados = jogosDiscosEstimados * machineDb.discosPorJogo;
   const custoFacas = facasEstimadas * machineDb.precoFaca;
   const custoDiscos = discosEstimados * machineDb.precoDisco;
   const consumoTotalMaquinasPorM2 =
