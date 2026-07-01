@@ -86,6 +86,22 @@ const EQUIPAMENTOS_ALUGADOS_OPCOES = [
   { value: "nivel_laser", label: "Nível laser" },
   { value: "regua_vibratoria", label: "Régua vibratória" }
 ];
+const MACHINE_DATABASE_FIELD_IDS = [
+  "paramRendimentoFacas",
+  "paramFacasPorJogo",
+  "paramPrecoFaca",
+  "paramRendimentoDisco",
+  "paramDiscosPorJogo",
+  "paramPrecoDisco",
+  "paramConsumoMaquinaDupla",
+  "paramConsumoMaquinaSimples",
+  "paramConsumoMaquinaCorte"
+];
+const PROPOSAL_SERVICE_COLUMN_LABELS = {
+  service: "Serviço",
+  valuePerSquareMeter: "Valor por m²",
+  total: "Valor total"
+};
 const DEFAULT_MACHINE_DATABASE = {
   rendimentoFacasM2: 300,
   facasPorJogo: 4,
@@ -665,7 +681,6 @@ function refreshAppFromStorage() {
   updateAppVisibility();
   renderizarTabelaPropostas();
   renderDashboard();
-  applyMachineDatabaseToForm();
 }
 
 async function reconnectFirebase() {
@@ -1227,9 +1242,6 @@ function subscribeFirestoreChanges() {
       if (!data || typeof data !== "object" || Array.isArray(data)) return;
       writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalizeMachineDatabase(data));
       removeLegacyStorageItem(MACHINE_DB_STORAGE_KEY);
-      if (currentUserId) {
-        applyMachineDatabaseToForm();
-      }
     }, (error) => {
       handleFirebaseConnectionError("Erro ao escutar banco de máquinas:", error);
     })
@@ -1805,15 +1817,21 @@ function applyMachineDatabaseToForm() {
 
 function applyMachineDatabaseValuesToForm(data) {
   const db = normalizeMachineDatabase(data);
-  $("paramRendimentoFacas").value = String(db.rendimentoFacasM2);
-  $("paramFacasPorJogo").value = String(db.facasPorJogo);
-  $("paramPrecoFaca").value = String(db.precoFaca);
-  $("paramRendimentoDisco").value = String(db.rendimentoDiscoM2);
-  $("paramDiscosPorJogo").value = String(db.discosPorJogo);
-  $("paramPrecoDisco").value = String(db.precoDisco);
-  $("paramConsumoMaquinaDupla").value = String(db.consumoDuplaLitrosM2);
-  $("paramConsumoMaquinaSimples").value = String(db.consumoSimplesLitrosM2);
-  $("paramConsumoMaquinaCorte").value = String(db.consumoCorteLitrosM2);
+  $("paramRendimentoFacas").value = db.rendimentoFacasM2 > 0 ? String(db.rendimentoFacasM2) : "";
+  $("paramFacasPorJogo").value = db.facasPorJogo > 0 ? String(db.facasPorJogo) : "";
+  $("paramPrecoFaca").value = db.precoFaca > 0 ? String(db.precoFaca) : "";
+  $("paramRendimentoDisco").value = db.rendimentoDiscoM2 > 0 ? String(db.rendimentoDiscoM2) : "";
+  $("paramDiscosPorJogo").value = db.discosPorJogo > 0 ? String(db.discosPorJogo) : "";
+  $("paramPrecoDisco").value = db.precoDisco > 0 ? String(db.precoDisco) : "";
+  $("paramConsumoMaquinaDupla").value = db.consumoDuplaLitrosM2 > 0 ? String(db.consumoDuplaLitrosM2) : "";
+  $("paramConsumoMaquinaSimples").value = db.consumoSimplesLitrosM2 > 0 ? String(db.consumoSimplesLitrosM2) : "";
+  $("paramConsumoMaquinaCorte").value = db.consumoCorteLitrosM2 > 0 ? String(db.consumoCorteLitrosM2) : "";
+}
+
+function limparFormularioBancoDadosEstimativas() {
+  MACHINE_DATABASE_FIELD_IDS.forEach((id) => {
+    if ($(id)) $(id).value = "";
+  });
 }
 
 function aplicarEstimativaMercadoPreCadastrada() {
@@ -1837,10 +1855,10 @@ function aplicarEstimativaMercadoPreCadastrada() {
 function readMachineDatabaseFromForm() {
   return {
     rendimentoFacasM2: toNumber($("paramRendimentoFacas").value),
-    facasPorJogo: toPositiveIntegerOrFallback($("paramFacasPorJogo").value, DEFAULT_MACHINE_DATABASE.facasPorJogo),
+    facasPorJogo: Math.max(0, Math.round(toNumber($("paramFacasPorJogo").value))),
     precoFaca: toNumber($("paramPrecoFaca").value),
     rendimentoDiscoM2: toNumber($("paramRendimentoDisco").value),
-    discosPorJogo: toPositiveIntegerOrFallback($("paramDiscosPorJogo").value, DEFAULT_MACHINE_DATABASE.discosPorJogo),
+    discosPorJogo: Math.max(0, Math.round(toNumber($("paramDiscosPorJogo").value))),
     precoDisco: toNumber($("paramPrecoDisco").value),
     consumoDuplaLitrosM2: toNumber($("paramConsumoMaquinaDupla").value),
     consumoSimplesLitrosM2: toNumber($("paramConsumoMaquinaSimples").value),
@@ -2251,6 +2269,15 @@ function proposalFieldsSnapshot() {
     "quantidadeCaminhoes",
     "gastoLogisticoPessoal",
     "gastoLogisticoMaquinario",
+    "paramRendimentoFacas",
+    "paramFacasPorJogo",
+    "paramPrecoFaca",
+    "paramRendimentoDisco",
+    "paramDiscosPorJogo",
+    "paramPrecoDisco",
+    "paramConsumoMaquinaDupla",
+    "paramConsumoMaquinaSimples",
+    "paramConsumoMaquinaCorte",
     "modoFuncionarios",
     "funcionarios",
     "valorDia",
@@ -3105,9 +3132,14 @@ function renderServicosDetalhados(lines) {
   const fragment = document.createDocumentFragment();
   lines.forEach((item) => {
     const row = document.createElement("tr");
-    [item.label, formatMoney(item.valorM2), formatMoney(item.total)].forEach((value) => {
+    [
+      { label: PROPOSAL_SERVICE_COLUMN_LABELS.service, value: item.label },
+      { label: PROPOSAL_SERVICE_COLUMN_LABELS.valuePerSquareMeter, value: formatMoney(item.valorM2) },
+      { label: PROPOSAL_SERVICE_COLUMN_LABELS.total, value: formatMoney(item.total) }
+    ].forEach((column) => {
       const cell = document.createElement("td");
-      cell.textContent = value;
+      cell.dataset.label = column.label;
+      cell.textContent = column.value;
       row.appendChild(cell);
     });
     fragment.appendChild(row);
@@ -3184,7 +3216,7 @@ function calcularOrcamento() {
   const outrosCustos = toNumber($("outrosCustos").value);
   const lucroPercentual = toNumber($("lucro").value);
   const impostoPercentual = toNumber($("impostoPercentual").value);
-  const machineDb = getMachineDatabase();
+  const machineDb = readMachineDatabaseFromForm();
   const funcionariosAutomaticos = calcularFuncionariosPorMetragem(metragem);
   const modoFuncionarios = getModoFuncionarios();
   const funcionariosSelecionados =
@@ -3232,8 +3264,12 @@ function calcularOrcamento() {
   const custoMaoDeObra = custoMaoDeObraFuncionarios + custoDiaristas + custoHorasExtras;
   const custoAlimentacao = totalPessoaDias * alimentacaoFuncionario;
   const custoHotel = totalPessoaDias * hotelFuncionario;
-  const jogosFacasEstimados = metragem > 0 ? Math.ceil(metragem / machineDb.rendimentoFacasM2) : 0;
-  const jogosDiscosEstimados = metragem > 0 ? Math.ceil(metragem / machineDb.rendimentoDiscoM2) : 0;
+  const jogosFacasEstimados = metragem > 0 && machineDb.rendimentoFacasM2 > 0
+    ? Math.ceil(metragem / machineDb.rendimentoFacasM2)
+    : 0;
+  const jogosDiscosEstimados = metragem > 0 && machineDb.rendimentoDiscoM2 > 0
+    ? Math.ceil(metragem / machineDb.rendimentoDiscoM2)
+    : 0;
   const facasEstimadas = jogosFacasEstimados * machineDb.facasPorJogo;
   const discosEstimados = jogosDiscosEstimados * machineDb.discosPorJogo;
   const custoFacas = facasEstimadas * machineDb.precoFaca;
@@ -3330,29 +3366,32 @@ function calcularOrcamento() {
   $("prevObservacoes").textContent = `Observações: ${$("propostaObservacoes").value.trim() || "-"}`;
   $("prevVendedorNome").textContent = profile.nomeVendedor || currentUser?.name || "-";
   $("prevTipoContratacao").textContent = getTipoContratacaoLabel(tipoContratacao);
+  const servicosComplementaresCliente = [
+    { label: "Colocação de armação/tela", total: custoTelaTotal },
+    { label: "Fornecimento e aplicação de cura química", total: custoCuraQuimica },
+    { label: "Preparação de laje (chaveamento)", total: custoPreparoLaje },
+    { label: "Colocação de pisos intertravados", total: custoPisoIntertravado },
+    { label: "Fornecimento e aplicação de concreto", total: custoConcreto },
+    { label: "Fornecimento e aplicação de fibra", total: custoFibra },
+    { label: "Fornecimento e aplicação de agregado mineral", total: custoAgregadoMineral },
+    { label: "Fornecimento e aplicação de endurecedor", total: custoEndurecedor },
+    { label: "Fornecimento e aplicação de junta de PU", total: custoJuntaPu },
+    { label: "Fornecimento e aplicação de lábio polimérico", total: custoLabioPolimerico },
+    { label: "Pintura à base de epóxi", total: custoPinturaEpoxi },
+    { label: servicoAdicionalDescricao || "Serviço adicional", total: servicoAdicionalValor }
+  ];
+  const totalServicosComplementaresCliente = servicosComplementaresCliente
+    .reduce((acc, item) => acc + item.total, 0);
   const servicosDetalhados = [];
-  pushServiceLine(servicosDetalhados, "Deslocamento e logística", custoDeslocamento, metragem);
-  pushServiceLine(servicosDetalhados, "Mão de obra de execução", custoMaoDeObra, metragem);
-  pushServiceLine(servicosDetalhados, "Alimentação e estadia da equipe", custoAlimentacao + custoHotel, metragem);
-  pushServiceLine(servicosDetalhados, `Facas de acabamento (${formatConsumableSetsAndItems(jogosFacasEstimados, facasEstimadas, "faca", "facas")})`, custoFacas, metragem);
-  pushServiceLine(servicosDetalhados, `Discos de flotagem (${formatConsumableSetsAndItems(jogosDiscosEstimados, discosEstimados, "disco", "discos")})`, custoDiscos, metragem);
-  pushServiceLine(servicosDetalhados, "Combustível das máquinas", custoCombustivelMaquinas, metragem);
-  pushServiceLine(servicosDetalhados, "Terraplanagem", terraplanagemTotal, metragem);
-  pushServiceLine(servicosDetalhados, "Colocação de malha de aço/tela", custoTelaTotal, metragem);
-  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de cura química", custoCuraQuimica, metragem);
-  pushServiceLine(servicosDetalhados, "Preparação de laje (chaveamento)", custoPreparoLaje, metragem);
-  pushServiceLine(servicosDetalhados, "Colocação de pisos intertravados", custoPisoIntertravado, metragem);
-  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de concreto", custoConcreto, metragem);
-  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de fibra", custoFibra, metragem);
-  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de agregado mineral", custoAgregadoMineral, metragem);
-  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de endurecedor", custoEndurecedor, metragem);
-  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de junta de PU", custoJuntaPu, metragem);
-  pushServiceLine(servicosDetalhados, "Fornecimento e aplicação de lábio polimérico", custoLabioPolimerico, metragem);
-  pushServiceLine(servicosDetalhados, "Pintura à base de epóxi", custoPinturaEpoxi, metragem);
-  pushServiceLine(servicosDetalhados, locacaoManualDescricao || "Locação externa de máquinas/equipamentos", locacaoManualValor, metragem);
-  pushServiceLine(servicosDetalhados, servicoAdicionalDescricao || "Serviço adicional", servicoAdicionalValor, metragem);
-  pushServiceLine(servicosDetalhados, "Encargos adicionais", encargos, metragem);
-  pushServiceLine(servicosDetalhados, "Outros custos", outrosCustos, metragem);
+  pushServiceLine(
+    servicosDetalhados,
+    "Execução do piso industrial",
+    Math.max(0, total - totalServicosComplementaresCliente),
+    metragem
+  );
+  servicosComplementaresCliente.forEach((item) => {
+    pushServiceLine(servicosDetalhados, item.label, item.total, metragem);
+  });
   renderServicosDetalhados(servicosDetalhados);
   atualizarPreviaPerfil();
 
@@ -3659,6 +3698,15 @@ function limparCampos() {
     "quantidadeCaminhoes",
     "gastoLogisticoPessoal",
     "gastoLogisticoMaquinario",
+    "paramRendimentoFacas",
+    "paramFacasPorJogo",
+    "paramPrecoFaca",
+    "paramRendimentoDisco",
+    "paramDiscosPorJogo",
+    "paramPrecoDisco",
+    "paramConsumoMaquinaDupla",
+    "paramConsumoMaquinaSimples",
+    "paramConsumoMaquinaCorte",
     "modoFuncionarios",
     "funcionarios",
     "valorDia",
@@ -3755,7 +3803,6 @@ function salvarBancoDadosEstimativas(event) {
   const nextDb = readMachineDatabaseFromForm();
   if (!saveMachineDatabase(nextDb)) return;
 
-  applyMachineDatabaseToForm();
   calcularOrcamento();
   salvarRascunhoLocal();
   showToast("Parâmetros manuais salvos.");
@@ -4251,7 +4298,7 @@ async function atualizarInterfaceAutenticada() {
   renderizarTabelaPropostas();
   renderDashboard();
   atualizarTextoBotaoProposta();
-  applyMachineDatabaseToForm();
+  limparFormularioBancoDadosEstimativas();
   atualizarModoFuncionarios({ preserveManualValue: false });
   atualizarCampoEquipamentosAlugados({ preserveValuesWhenHidden: true, syncFromSnapshot: true });
   await carregarRascunhoLocal();
@@ -4498,6 +4545,15 @@ function bindStaticEvents() {
     "quantidadeCaminhoes",
     "gastoLogisticoPessoal",
     "gastoLogisticoMaquinario",
+    "paramRendimentoFacas",
+    "paramFacasPorJogo",
+    "paramPrecoFaca",
+    "paramRendimentoDisco",
+    "paramDiscosPorJogo",
+    "paramPrecoDisco",
+    "paramConsumoMaquinaDupla",
+    "paramConsumoMaquinaSimples",
+    "paramConsumoMaquinaCorte",
     "valorDia",
     "dias",
     "diasPreparacao",
@@ -4659,7 +4715,7 @@ async function init() {
     await bootstrapStorageFromFirebase();
     subscribeFirestoreChanges();
     await ensureAdminExists();
-    applyMachineDatabaseToForm();
+    limparFormularioBancoDadosEstimativas();
     updateAppVisibility();
     await restoreSession();
     atualizarTextoBotaoProposta();

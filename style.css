@@ -863,6 +863,10 @@ select {
     border-radius: 18px;
   }
 
+  .proposta-preview {
+    padding: 20px 16px;
+  }
+
   .btn {
     width: 100%;
   }
@@ -876,6 +880,60 @@ select {
 
   .topo {
     padding: 28px 16px 30px;
+  }
+
+  .proposal-table-wrap {
+    overflow: hidden;
+  }
+
+  .proposal-table,
+  .proposal-table tbody,
+  .proposal-table tr,
+  .proposal-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .proposal-table thead {
+    display: none;
+  }
+
+  .proposal-table tr {
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .proposal-table td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    text-align: left;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .proposal-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .proposal-table td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--secondary);
+  }
+
+  .proposal-table td[colspan] {
+    display: block;
+    text-align: center;
+  }
+
+  .proposal-table td[colspan]::before {
+    content: none;
   }
 }
 
