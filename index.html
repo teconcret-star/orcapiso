@@ -52,7 +52,7 @@
               <p class="session-label">Sessão ativa</p>
               <strong id="sessionUserName">-</strong>
               <p id="sessionUserMeta">-</p>
-              <span id="firebaseStatus" class="firebase-status firebase-status-off" title="Verificando conexão...">☁ Firebase: conectando…</span>
+              <span id="firebaseStatus" class="firebase-status firebase-status-ok" title="Dados salvos neste dispositivo">💾 Armazenamento local: ativo</span>
             </div>
             <div class="session-actions">
               <button id="btnLogout" class="btn btn-secondary">Sair</button>
@@ -683,7 +683,7 @@
             <button id="btnLimpar" class="btn btn-secondary">Limpar campos</button>
           </section>
 
-          <p id="draftStatus" class="status-text">Os dados do orçamento ficam salvos automaticamente no Firestore.</p>
+          <p id="draftStatus" class="status-text">Os dados do orçamento ficam salvos automaticamente neste dispositivo.</p>
 
           <section class="card resultado-card">
             <h2>Prévia da proposta comercial</h2>
@@ -1157,6 +1157,16 @@
           </section>
 
           <section class="card">
+            <h2>Backup local das tabelas</h2>
+            <p class="help-text">Exporte e importe usuários, propostas, clientes e parâmetros da base de máquinas.</p>
+            <div class="acoes">
+              <button id="btnExportarTabelas" type="button" class="btn btn-primary">Exportar tabelas</button>
+              <button id="btnImportarTabelas" type="button" class="btn btn-secondary">Importar tabelas</button>
+              <input id="inputImportarTabelas" type="file" accept="application/json" hidden />
+            </div>
+          </section>
+
+          <section class="card">
             <h2>Gráficos analíticos</h2>
             <div class="dashboard-charts-grid">
               <div class="chart-container">
@@ -1209,8 +1219,6 @@
     </div>
   </div>
 
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script defer src="script.js"></script>
 </body>

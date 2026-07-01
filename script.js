@@ -52,6 +52,8 @@ const FIREBASE_RECONNECT_DELAY_MS = 3000;
 const FIREBASE_STATUS_CONNECTED = "connected";
 const FIREBASE_STATUS_RECONNECTING = "reconnecting";
 const FIREBASE_STATUS_DISCONNECTED = "disconnected";
+const FIREBASE_STATUS_LOCAL = "local";
+const TABLE_EXPORT_SCHEMA_VERSION = 1;
 const PRINT_CLEANUP_RETRY_DELAY_MS = 400;
 const IFRAME_CLEANUP_DELAY_MS = 600;
 const IFRAME_PRINT_FALLBACK_TIMEOUT_MS = 2000;
@@ -506,13 +508,13 @@ function readJsonStorage(key, fallback) {
 
 function writeJsonStorage(key, value) {
   try {
-    // Mantém o estado temporário em memória; o Firestore é a persistência operacional.
     const cloned = cloneStorageValue(value);
     runtimeStorage.set(key, cloned);
+    window.localStorage?.setItem?.(key, JSON.stringify(cloned));
 
     return true;
   } catch {
-    showToast("Falha ao processar os dados em memória.", true);
+    showToast("Falha ao salvar dados no armazenamento local.", true);
     return false;
   }
 }
@@ -605,6 +607,12 @@ function writeDraftPayloadToStorage(payload, userId = currentUserId) {
 function updateFirebaseStatus(status) {
   const el = $("firebaseStatus");
   if (!el) return;
+  if (status === FIREBASE_STATUS_LOCAL) {
+    el.textContent = "💾 Armazenamento local: ativo";
+    el.className = "firebase-status firebase-status-ok";
+    el.title = "Dados salvos neste dispositivo";
+    return;
+  }
   const normalizedStatus = status === true
     ? FIREBASE_STATUS_CONNECTED
     : status === false
@@ -967,6 +975,7 @@ async function readFirestoreCollectionRecords(collectionName, fallback = []) {
 }
 
 function syncFirestoreDoc(docId, value) {
+  if (!firebaseSyncEnabled) return;
   const ref = getFirestoreDoc(docId);
   if (!ref) {
     console.debug(`[Firebase Sync] Firestore não conectado, adicionando ${docId} à fila de retentativa`);
@@ -1015,6 +1024,7 @@ function syncFirestoreCollectionRecords(collectionName, records) {
     }
   }
   const ref = getFirestoreCollection(collectionName);
+  if (!firebaseSyncEnabled) return Promise.resolve();
   if (!ref) {
     console.debug(`[Firebase Sync] Firestore não conectado, adicionando coleção ${collectionName} à fila de retentativa`);
     if (syncDocId) handleFirebaseSyncError(syncDocId, new Error("Firestore not connected"), list);
@@ -1133,6 +1143,7 @@ async function readFirestoreDraftPayload(userId = currentUserId) {
 }
 
 function syncFirestoreDraftPayload(payload, userId = currentUserId) {
+  if (!firebaseSyncEnabled) return;
   const docId = getDraftFirestoreDocId(userId);
   const normalized = normalizeDraftPayload(payload);
   if (!docId || !normalized) return;
@@ -1180,10 +1191,7 @@ function clearFirestoreDraft(userId = currentUserId) {
   removeStorageItem(getDraftStorageKey(userId));
   clearLegacyDraftStorage(userId);
   const ref = getFirestoreDoc(docId);
-  if (!ref) {
-    scheduleFirebaseReconnect();
-    return;
-  }
+  if (!ref) return;
   ref.delete().catch((error) => {
     console.warn(`Falha ao remover ${docId}:`, error);
   });
@@ -1853,6 +1861,127 @@ function saveMachineDatabase(data) {
   const success = writeJsonStorage(MACHINE_DB_STORAGE_KEY, normalized);
   if (success) syncFirestoreDoc(FIRESTORE_MACHINE_DB_DOC, normalized);
   return success;
+}
+
+function buildTablesExportPayload() {
+  return {
+    schemaVersion: TABLE_EXPORT_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    source: "local_storage",
+    data: {
+      users: getUsers(),
+      proposals: getSavedProposals(),
+      clients: getSavedClients(),
+      machineDatabase: getMachineDatabase()
+    }
+  };
+}
+
+function getTablesExportFilename() {
+  const timestamp = new Date().toISOString().replaceAll(":", "-");
+  return `orcamento-tabelas-${timestamp}.json`;
+}
+
+function exportarTabelas() {
+  if (!isAdmin()) {
+    showToast("Somente administradores podem exportar as tabelas.", true);
+    return;
+  }
+  try {
+    const payload = buildTablesExportPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = getTablesExportFilename();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast("Tabelas exportadas com sucesso.");
+  } catch (error) {
+    console.error("Falha ao exportar tabelas:", error);
+    showToast("Não foi possível exportar as tabelas.", true);
+  }
+}
+
+function getImportTablesInput() {
+  return $("inputImportarTabelas");
+}
+
+function abrirImportacaoTabelas() {
+  if (!isAdmin()) {
+    showToast("Somente administradores podem importar tabelas.", true);
+    return;
+  }
+  const input = getImportTablesInput();
+  if (!input) return;
+  input.value = "";
+  input.click();
+}
+
+function normalizeTablesImportPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const data = payload.data && typeof payload.data === "object" && !Array.isArray(payload.data)
+    ? payload.data
+    : payload;
+  const users = Array.isArray(data.users) ? normalizeUsersForStorage(data.users) : null;
+  const proposals = Array.isArray(data.proposals) ? data.proposals : null;
+  const clients = Array.isArray(data.clients)
+    ? data.clients.map(normalizeClientRecord).filter(Boolean)
+    : null;
+  const machineDatabase = isPlainObject(data.machineDatabase)
+    ? normalizeMachineDatabase(data.machineDatabase)
+    : null;
+  if (!users && !proposals && !clients && !machineDatabase) return null;
+  return { users, proposals, clients, machineDatabase };
+}
+
+async function importarTabelas(event) {
+  if (!isAdmin()) {
+    showToast("Somente administradores podem importar tabelas.", true);
+    return;
+  }
+  const input = event?.target;
+  const file = input?.files?.[0];
+  if (!file) return;
+
+  try {
+    const content = await file.text();
+    const parsed = JSON.parse(content);
+    const normalized = normalizeTablesImportPayload(parsed);
+    if (!normalized) {
+      showToast("Arquivo inválido para importação de tabelas.", true);
+      return;
+    }
+
+    if (normalized.users) saveUsers(normalized.users);
+    if (normalized.proposals) saveProposals(normalized.proposals);
+    if (normalized.clients) saveClients(normalized.clients);
+    if (normalized.machineDatabase) saveMachineDatabase(normalized.machineDatabase);
+    await ensureAdminExists();
+
+    refreshCurrentUser();
+    if (!currentUser) {
+      handleLogout({ silent: true });
+      showToast("Importação concluída. Faça login novamente para continuar.");
+      return;
+    }
+
+    applyMachineDatabaseToForm();
+    renderUsersTable();
+    renderClientsTable();
+    populateProposalClientSelect();
+    renderizarTabelaPropostas();
+    renderDashboard();
+    updateSessionInfo();
+    showToast("Tabelas importadas com sucesso.");
+  } catch (error) {
+    console.error("Falha ao importar tabelas:", error);
+    showToast("Não foi possível importar as tabelas.", true);
+  } finally {
+    if (input) input.value = "";
+  }
 }
 
 function applyMachineDatabaseToForm() {
@@ -3877,10 +4006,7 @@ function salvarRascunhoLocal() {
       hour: "2-digit",
       minute: "2-digit"
     });
-    const status = firebaseSyncEnabled
-      ? `Rascunho salvo automaticamente às ${time} no Firestore.`
-      : `Rascunho salvo em memória às ${time} — será sincronizado quando a conexão for restaurada.`;
-    updateDraftStatus(status);
+    updateDraftStatus(`Rascunho salvo automaticamente às ${time} neste dispositivo.`);
   }
 }
 
@@ -3901,16 +4027,14 @@ async function carregarRascunhoLocal() {
     }
   }
 
-  const firestorePayload = await readFirestoreDraftPayload();
+  const firestorePayload = firebaseSyncEnabled ? await readFirestoreDraftPayload() : null;
   const shouldSyncLocalToFirestore = Boolean(localPayload && (localPayload.pendingSync || !firestorePayload));
   const payload = localPayload?.pendingSync
     ? localPayload
     : (firestorePayload || localPayload);
 
   if (!payload) {
-    updateDraftStatus(firebaseSyncEnabled
-      ? "Os dados do orçamento ficam salvos automaticamente no Firestore."
-      : "Sem conexão — novos rascunhos ficam apenas em memória até reconectar ao Firestore.");
+    updateDraftStatus("Os dados do orçamento ficam salvos automaticamente neste dispositivo.");
     return;
   }
 
@@ -3920,11 +4044,7 @@ async function carregarRascunhoLocal() {
   }
 
   applyProposalSnapshot(payload.snapshot);
-  updateDraftStatus(payload === firestorePayload
-    ? "Rascunho restaurado do Firestore."
-    : shouldSyncLocalToFirestore
-      ? "Rascunho legado restaurado e enviado ao Firestore."
-      : "Rascunho temporário restaurado.");
+  updateDraftStatus("Rascunho restaurado do armazenamento local.");
 }
 
 async function salvarProposta() {
@@ -4377,7 +4497,6 @@ function handleLogout({ silent = false } = {}) {
   currentUserId = "";
   editingProposalId = "";
   logoDataUrl = "";
-  subscribeFirestoreChanges();
   updateAppVisibility();
   $("loginSenha").value = "";
   if (!silent) {
@@ -4386,10 +4505,6 @@ function handleLogout({ silent = false } = {}) {
 }
 
 async function atualizarInterfaceAutenticada() {
-  // Subscribe to Firestore changes first to ensure listeners are active before any field changes.
-  subscribeFirestoreChanges();
-  startPendingSyncCheck();
-
   refreshCurrentUser();
   updateAppVisibility();
   updateSessionInfo();
@@ -4425,11 +4540,6 @@ async function restoreSession() {
 
   const user = getUsers().find((item) => item.id === session.userId && item.active);
   if (!user) {
-    if (!firebaseSyncEnabled) {
-      // Mantém a sessão em storage para restoreSession() validar novamente após o Firestore reconectar.
-      updateAppVisibility();
-      return;
-    }
     clearSession();
     updateAppVisibility();
     return;
@@ -4480,6 +4590,9 @@ function bindStaticEvents() {
   $("btnSalvarProposta").addEventListener("click", salvarProposta);
   $("btnSalvarPdf").addEventListener("click", salvarPropostaEmPdf);
   $("btnWhatsApp").addEventListener("click", gerarMensagemWhatsApp);
+  $("btnExportarTabelas").addEventListener("click", exportarTabelas);
+  $("btnImportarTabelas").addEventListener("click", abrirImportacaoTabelas);
+  $("inputImportarTabelas").addEventListener("change", importarTabelas);
   $("filtroTabelaPropostas").addEventListener("input", renderizarTabelaPropostas);
   $("filtroTabelaUsuarios").addEventListener("input", renderUsersTable);
   $("filtroTabelaClientes").addEventListener("input", renderClientsTable);
@@ -4780,58 +4893,19 @@ function bindStaticEvents() {
   });
   document.addEventListener("visibilitychange", () => {
     tentarLimparEstadoImpressao();
-    if (!document.hidden) {
-      if (firebaseSyncEnabled && firestoreDb) {
-        bootstrapStorageFromFirebase().then(() => {
-          if (currentUserId) refreshAppFromStorage();
-        }).catch((error) => {
-          handleFirebaseConnectionError("Falha ao atualizar dados do Firebase ao voltar para o app:", error);
-        });
-        return;
-      }
-      reconnectFirebase().then((connected) => {
-        if (!connected) scheduleFirebaseReconnect();
-      }).catch((error) => {
-        handleFirebaseConnectionError("Falha ao restabelecer Firebase ao voltar para o app:", error);
-      });
-    }
-  });
-
-  window.addEventListener("online", () => {
-    if (isFirebaseConnectionReady() && !firebaseReconnectPromise && firebaseReconnectTimeoutId === null) {
-      bootstrapStorageFromFirebase().then(() => {
-        if (currentUserId) refreshAppFromStorage();
-      }).catch((error) => {
-        handleFirebaseConnectionError("Falha ao sincronizar dados ao voltar a conexão:", error);
-      });
-      return;
-    }
-    reconnectFirebase().then((connected) => {
-      if (!connected) {
-        scheduleFirebaseReconnect();
-      } else if (currentUserId) {
-        refreshAppFromStorage();
-      }
-    }).catch((error) => {
-      handleFirebaseConnectionError("Falha ao sincronizar dados ao voltar a conexão:", error);
-    });
-  });
-
-  window.addEventListener("offline", () => {
-    updateFirebaseStatus(false);
   });
 }
 
 async function init() {
   try {
     bindStaticEvents();
-    loadPendingSyncQueueFromStorage();
-    initializeFirebaseConnection();
-    // Allow Firestore client time to establish network connection before reading documents
-    await new Promise((resolve) => setTimeout(resolve, FIREBASE_INIT_CONNECTION_DELAY_MS));
-    await bootstrapStorageFromFirebase();
-    subscribeFirestoreChanges();
-    updateFirebaseStatus(FIREBASE_STATUS_CONNECTED);
+    firebaseSyncEnabled = false;
+    firestoreDb = null;
+    clearFirestoreListeners();
+    stopPendingSyncCheck();
+    pendingSyncQueue.clear();
+    removeLegacyStorageItem(PENDING_SYNC_STORAGE_KEY);
+    updateFirebaseStatus(FIREBASE_STATUS_LOCAL);
     await ensureAdminExists();
     limparFormularioBancoDadosEstimativas();
     updateAppVisibility();
@@ -4848,7 +4922,7 @@ async function init() {
     calcularOrcamento();
   } catch (error) {
     console.error("Falha ao iniciar o sistema:", error);
-    updateFirebaseStatus(false);
+    updateFirebaseStatus(FIREBASE_STATUS_LOCAL);
     updateAppVisibility();
     showToast("Falha ao iniciar alguns recursos. Tente recarregar a página.", true);
   }
