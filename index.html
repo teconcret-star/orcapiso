@@ -285,7 +285,7 @@
 
           <section class="card" data-admin-only-block="true">
             <h2>Estimativas manuais por m²</h2>
-            <p class="help-text auth-description">Lance manualmente os parâmetros usados para estimar facas, discos e combustível das máquinas por área concretada.</p>
+            <p class="help-text auth-description">Lance manualmente os parâmetros usados para estimar facas, discos e combustível das máquinas por área concretada. Os campos começam em branco e só entram no cálculo com os valores informados nesta proposta.</p>
             <form id="machineDbForm" class="grid">
               <div class="field">
                 <label for="paramRendimentoFacas">Rendimento por faca (m²/unidade)</label>
@@ -751,7 +751,7 @@
               <section class="proposta-secao">
                 <h4>RESUMO DO ORÇAMENTO</h4>
                 <div class="table-wrap proposal-table-wrap">
-                  <table class="data-table proposal-table">
+                  <table class="data-table proposal-table proposal-summary-table">
                     <thead>
                       <tr>
                         <th>Área do piso</th>
@@ -761,9 +761,9 @@
                     </thead>
                     <tbody>
                       <tr>
-                        <td id="resArea">0,00 m²</td>
-                        <td id="resValorM2">R$ 0,00</td>
-                        <td id="resTotal">R$ 0,00</td>
+                        <td id="resArea" data-label="Área do piso">0,00 m²</td>
+                        <td id="resValorM2" data-label="Valor por m²">R$ 0,00</td>
+                        <td id="resTotal" data-label="Valor total">R$ 0,00</td>
                       </tr>
                     </tbody>
                   </table>
