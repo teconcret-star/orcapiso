@@ -4215,7 +4215,68 @@ async function trocarMinhaSenha(event) {
   if (!saveUsers(users)) return;
   refreshCurrentUser();
   resetPasswordForm();
+  hideForcedPasswordModal();
   showToast("Senha atualizada com sucesso.");
+}
+
+function showForcedPasswordModal() {
+  const overlay = $("changePasswordOverlay");
+  if (!overlay) return;
+  overlay.hidden = false;
+  $("forcedNovaSenha").value = "";
+  $("forcedConfirmarSenha").value = "";
+  $("forcedNovaSenha").focus();
+}
+
+function hideForcedPasswordModal() {
+  const overlay = $("changePasswordOverlay");
+  if (overlay) overlay.hidden = true;
+}
+
+async function handleForcedPasswordChange(event) {
+  event.preventDefault();
+  if (!refreshCurrentUser()) return;
+
+  const novaSenha = $("forcedNovaSenha").value;
+  const confirmarSenha = $("forcedConfirmarSenha").value;
+
+  if (!novaSenha || !confirmarSenha) {
+    showToast("Preencha os dois campos de senha.", true);
+    return;
+  }
+
+  if (novaSenha.length < 6) {
+    showToast("A nova senha deve ter pelo menos 6 caracteres.", true);
+    return;
+  }
+
+  if (novaSenha !== confirmarSenha) {
+    showToast("A confirmação da nova senha não confere.", true);
+    return;
+  }
+
+  const users = getUsers();
+  const index = users.findIndex((user) => user.id === currentUserId);
+  if (index < 0) return;
+
+  const btn = $("btnSalvarSenhaForced");
+  if (btn) btn.disabled = true;
+  try {
+    users[index] = {
+      ...users[index],
+      ...(await createPasswordCredentials(novaSenha)),
+      mustChangePassword: false,
+      updatedAt: Date.now()
+    };
+
+    if (!saveUsers(users)) return;
+    refreshCurrentUser();
+    updateSessionInfo();
+    hideForcedPasswordModal();
+    showToast("Senha definida com sucesso. Bem-vindo!");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function handleLogin(event) {
@@ -4271,8 +4332,7 @@ async function handleLogin(event) {
   await atualizarInterfaceAutenticada();
   $("loginSenha").value = "";
   if (currentUser.mustChangePassword) {
-    showToast("Esta conta está com senha provisória. Atualize sua senha em Meu Perfil.");
-    activateTab("tabPerfil");
+    showForcedPasswordModal();
     return;
   }
   showToast("Login realizado com sucesso.");
@@ -4282,6 +4342,7 @@ function handleLogout({ silent = false } = {}) {
   stopPendingSyncCheck();
   clearSession();
   clearFirestoreListeners();
+  hideForcedPasswordModal();
   currentUser = null;
   currentUserId = "";
   editingProposalId = "";
@@ -4347,6 +4408,9 @@ async function restoreSession() {
   currentUserId = user.id;
   currentUser = mergeUserProfile(user);
   await atualizarInterfaceAutenticada();
+  if (currentUser?.mustChangePassword) {
+    showForcedPasswordModal();
+  }
 }
 
 function bindStaticEvents() {
@@ -4362,6 +4426,7 @@ function bindStaticEvents() {
     salvarPerfil();
   });
   $("passwordForm").addEventListener("submit", trocarMinhaSenha);
+  $("forcedPasswordForm").addEventListener("submit", handleForcedPasswordChange);
   $("userForm").addEventListener("submit", salvarUsuario);
   $("clientForm").addEventListener("submit", salvarCliente);
   $("machineDbForm").addEventListener("submit", salvarBancoDadosEstimativas);

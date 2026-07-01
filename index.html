@@ -1188,6 +1188,27 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+  <div id="changePasswordOverlay" class="modal-overlay" hidden aria-modal="true" role="dialog" aria-labelledby="changePasswordModalTitle">
+    <div class="modal-box">
+      <div class="modal-icon">🔒</div>
+      <h2 id="changePasswordModalTitle">Defina sua senha de acesso</h2>
+      <p class="modal-desc">Você está usando uma senha provisória. Defina uma nova senha pessoal para continuar.</p>
+      <form id="forcedPasswordForm" novalidate>
+        <div class="field">
+          <label for="forcedNovaSenha">Nova senha</label>
+          <input type="password" id="forcedNovaSenha" autocomplete="new-password" placeholder="Mínimo 6 caracteres" />
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label for="forcedConfirmarSenha">Confirmar nova senha</label>
+          <input type="password" id="forcedConfirmarSenha" autocomplete="new-password" placeholder="Repita a nova senha" />
+        </div>
+        <div class="acoes" style="margin-top:20px">
+          <button id="btnSalvarSenhaForced" type="submit" class="btn btn-primary">Salvar senha</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>

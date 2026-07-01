@@ -763,6 +763,54 @@ select {
   display: block;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 20px;
+  backdrop-filter: blur(3px);
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-box {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: var(--shadow-soft);
+  text-align: center;
+}
+
+.modal-icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
+
+.modal-box h2 {
+  margin: 0 0 10px;
+  font-size: 1.3rem;
+  color: var(--text);
+}
+
+.modal-desc {
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.modal-box .field {
+  text-align: left;
+}
+
 .toast {
   position: fixed;
   left: 50%;
