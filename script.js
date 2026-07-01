@@ -509,9 +509,9 @@ function readJsonStorage(key, fallback) {
 function writeJsonStorage(key, value) {
   try {
     const cloned = cloneStorageValue(value);
+    if (!window.localStorage) throw new Error("localStorage indisponível");
+    window.localStorage.setItem(key, JSON.stringify(cloned));
     runtimeStorage.set(key, cloned);
-    window.localStorage?.setItem?.(key, JSON.stringify(cloned));
-
     return true;
   } catch {
     showToast("Falha ao salvar dados no armazenamento local.", true);
@@ -1878,7 +1878,16 @@ function buildTablesExportPayload() {
 }
 
 function getTablesExportFilename() {
-  const timestamp = new Date().toISOString().replaceAll(":", "-");
+  const now = new Date();
+  const timestamp = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0")
+  ].join("-") + "_" + [
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+    String(now.getSeconds()).padStart(2, "0")
+  ].join("-");
   return `orcamento-tabelas-${timestamp}.json`;
 }
 
@@ -1961,12 +1970,13 @@ async function importarTabelas(event) {
     if (normalized.machineDatabase) saveMachineDatabase(normalized.machineDatabase);
     await ensureAdminExists();
 
-    refreshCurrentUser();
-    if (!currentUser) {
+    const currentUserInImportedData = getUsers().find((item) => item.id === currentUserId && item.active);
+    if (!currentUserInImportedData) {
       handleLogout({ silent: true });
       showToast("Importação concluída. Faça login novamente para continuar.");
       return;
     }
+    currentUser = mergeUserProfile(currentUserInImportedData);
 
     applyMachineDatabaseToForm();
     renderUsersTable();
