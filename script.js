@@ -917,8 +917,10 @@ async function readFirestoreDoc(docId, fallback) {
       return fallback;
     }
   } catch (error) {
-    console.error(`[Firebase Read] ✗ Erro ao ler ${docId}:`, error?.code, error?.message);
-    handleFirebaseConnectionError(`Falha ao ler ${docId}:`, error);
+    console.warn(`[Firebase Read] ✗ Erro ao ler ${docId}:`, error?.code, error?.message);
+    if (error?.code === "unavailable" || window.navigator?.onLine === false) {
+      scheduleFirebaseReconnect();
+    }
     return fallback;
   }
 }
@@ -943,8 +945,10 @@ async function readFirestoreCollectionRecords(collectionName, fallback = []) {
     console.log(`[Firebase Read] ✓ Sucesso ao ler coleção ${collectionName}`);
     return sortFirestoreCollectionRecords(collectionName, records);
   } catch (error) {
-    console.error(`[Firebase Read] ✗ Erro ao ler coleção ${collectionName}:`, error?.code, error?.message);
-    handleFirebaseConnectionError(`Falha ao ler coleção ${collectionName}:`, error);
+    console.warn(`[Firebase Read] ✗ Erro ao ler coleção ${collectionName}:`, error?.code, error?.message);
+    if (error?.code === "unavailable" || window.navigator?.onLine === false) {
+      scheduleFirebaseReconnect();
+    }
     return fallback;
   }
 }
@@ -1107,7 +1111,10 @@ async function readFirestoreDraftPayload(userId = currentUserId) {
       updatedAtServer: data.updatedAtServer
     });
   } catch (error) {
-    handleFirebaseConnectionError(`Falha ao ler ${docId}:`, error);
+    console.warn(`[Firebase Read] ✗ Erro ao ler ${docId}:`, error?.code, error?.message);
+    if (error?.code === "unavailable" || window.navigator?.onLine === false) {
+      scheduleFirebaseReconnect();
+    }
     return null;
   }
 }
@@ -1139,8 +1146,7 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
     FIREBASE_OPERATION_TIMEOUT_MS,
     `Tempo esgotado ao sincronizar ${docId}`
   ).catch((error) => {
-    console.error(`Falha ao sincronizar ${docId}:`, error);
-    handleFirebaseConnectionError(`Falha ao sincronizar ${docId}:`, error);
+    console.warn(`Falha ao sincronizar ${docId}:`, error);
     // Ensure the draft is marked as pending sync in local storage if sync fails
     const payloadWithPending = {
       ...normalized,
@@ -1148,6 +1154,9 @@ function syncFirestoreDraftPayload(payload, userId = currentUserId) {
       updatedAtClient: normalized.updatedAtClient
     };
     writeDraftPayloadToStorage(payloadWithPending, userId);
+    if (error?.code === "unavailable" || window.navigator?.onLine === false) {
+      scheduleFirebaseReconnect();
+    }
   });
 }
 
@@ -1163,7 +1172,7 @@ function clearFirestoreDraft(userId = currentUserId) {
     return;
   }
   ref.delete().catch((error) => {
-    handleFirebaseConnectionError(`Falha ao remover ${docId}:`, error);
+    console.warn(`Falha ao remover ${docId}:`, error);
   });
 }
 
