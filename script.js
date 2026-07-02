@@ -2394,6 +2394,14 @@ function updateAppVisibility() {
 
 function applyOpenAccessModeUI() {
   if (!OPEN_ACCESS_MODE) return;
+  const authSection = $("authSection");
+  if (authSection) authSection.hidden = true;
+  const loginForm = $("loginForm");
+  if (loginForm) {
+    loginForm.querySelectorAll("input, button").forEach((field) => {
+      field.disabled = true;
+    });
+  }
   const passwordCard = $("passwordForm")?.closest(".card");
   if (passwordCard) passwordCard.hidden = true;
   const userPasswordField = $("usuarioSenha")?.closest(".field");
