@@ -172,7 +172,7 @@ function generateOpenAccessPassword() {
   if (window.crypto?.getRandomValues) {
     const randomBytes = new Uint8Array(16);
     window.crypto.getRandomValues(randomBytes);
-    return Array.from(randomBytes, (byte) => byte.toString(16).padStart(HEX_BYTE_LENGTH, "0")).join("");
+    return Array.from(randomBytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   }
   return `${Date.now()}_${createUniqueId()}_${Math.random().toString(36).slice(2)}`;
 }
