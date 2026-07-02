@@ -2289,8 +2289,6 @@ async function ensureDefaultAdminAccess(email, password) {
 
 async function ensureOpenAccessUser() {
   const users = getUsers();
-  const activeAdmin = users.find((user) => normalizeUserRole(user?.role) === ROLE_ADMIN && user.active);
-  if (activeAdmin) return activeAdmin;
   const existingOpenAccessUserIndex = users.findIndex((user) => user.email === OPEN_ACCESS_USER_EMAIL);
   if (existingOpenAccessUserIndex >= 0) {
     const existingOpenAccessUser = {
@@ -2315,7 +2313,7 @@ async function ensureOpenAccessUser() {
     role: ROLE_ADMIN,
     filial: DEFAULT_FILIAL,
     active: true,
-    ...(await createPasswordCredentials(DEFAULT_ADMIN_PASSWORD)),
+    ...(await createPasswordCredentials(createUniqueId())),
     mustChangePassword: false,
     profile: buildDefaultProfile({
       name: OPEN_ACCESS_USER_NAME,
@@ -2345,10 +2343,11 @@ function updateSessionInfo() {
   const filialInfo = currentUser.filial ? ` • ${currentUser.filial}` : "";
   $("sessionUserMeta").textContent = `${formatRole(currentUser.role)}${filialInfo} • ${currentUser.email} • ${currentUser.active ? "Ativo" : "Inativo"}`;
   $("senhaUsuarioEmail").value = currentUser.email || "";
-  $("securityNotice").hidden = OPEN_ACCESS_MODE || !currentUser.mustChangePassword;
-  $("securityNotice").textContent = OPEN_ACCESS_MODE
-    ? ""
-    : "Para sua segurança, altere sua senha provisória em Meu Perfil.";
+  const shouldShowSecurityNotice = !OPEN_ACCESS_MODE && currentUser.mustChangePassword;
+  $("securityNotice").hidden = !shouldShowSecurityNotice;
+  if (shouldShowSecurityNotice) {
+    $("securityNotice").textContent = "Para sua segurança, altere sua senha provisória em Meu Perfil.";
+  }
 }
 
 function updateTabVisibility() {
@@ -3228,8 +3227,8 @@ async function salvarUsuario(event) {
       role: formData.role,
       filial: DEFAULT_FILIAL,
       active: activeValue,
-      ...(await createPasswordCredentials(OPEN_ACCESS_MODE ? DEFAULT_ADMIN_PASSWORD : formPassword)),
-      mustChangePassword: OPEN_ACCESS_MODE ? false : true,
+      ...(await createPasswordCredentials(OPEN_ACCESS_MODE ? createUniqueId() : formPassword)),
+      mustChangePassword: !OPEN_ACCESS_MODE,
       profile: buildDefaultProfile({ name: formData.name, email: formData.email }),
       createdBy: currentUserId,
       createdByName: currentUser?.name || "Administrador",
@@ -4572,7 +4571,7 @@ async function handleLogin(event) {
 
 function handleLogout({ silent = false } = {}) {
   if (OPEN_ACCESS_MODE) {
-    if (!silent) showToast("Aplicativo em acesso livre.");
+    if (!silent) showToast("Logout não disponível no modo de acesso livre.");
     return;
   }
   stopPendingSyncCheck();
