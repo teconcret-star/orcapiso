@@ -2340,22 +2340,25 @@ async function ensureOpenAccessUser() {
 }
 
 function updateSessionInfo() {
+  const securityNoticeEl = $("securityNotice");
   if (!currentUser) {
     $("sessionUserName").textContent = "-";
     $("sessionUserMeta").textContent = "-";
-    $("senhaUsuarioEmail").value = "";
-    $("securityNotice").hidden = true;
+    const senhaUsuarioEmailEl = $("senhaUsuarioEmail");
+    if (senhaUsuarioEmailEl) senhaUsuarioEmailEl.value = "";
+    if (securityNoticeEl) securityNoticeEl.hidden = true;
     return;
   }
 
   $("sessionUserName").textContent = currentUser.name;
   const filialInfo = currentUser.filial ? ` • ${currentUser.filial}` : "";
   $("sessionUserMeta").textContent = `${formatRole(currentUser.role)}${filialInfo} • ${currentUser.email} • ${currentUser.active ? "Ativo" : "Inativo"}`;
-  $("senhaUsuarioEmail").value = currentUser.email || "";
+  const senhaUsuarioEmailEl = $("senhaUsuarioEmail");
+  if (senhaUsuarioEmailEl) senhaUsuarioEmailEl.value = currentUser.email || "";
   const shouldShowSecurityNotice = !OPEN_ACCESS_MODE && currentUser.mustChangePassword;
-  $("securityNotice").hidden = !shouldShowSecurityNotice;
-  if (shouldShowSecurityNotice) {
-    $("securityNotice").textContent = "Para sua segurança, altere sua senha provisória em Meu Perfil.";
+  if (securityNoticeEl) securityNoticeEl.hidden = !shouldShowSecurityNotice;
+  if (shouldShowSecurityNotice && securityNoticeEl) {
+    securityNoticeEl.textContent = "Para sua segurança, altere sua senha provisória em Meu Perfil.";
   }
 }
 
@@ -2388,8 +2391,10 @@ function updateTabVisibility() {
 function updateAppVisibility() {
   const authenticated = Boolean(currentUser);
   document.body.classList.toggle("auth-view", !authenticated);
-  $("authSection").hidden = OPEN_ACCESS_MODE || authenticated;
-  $("appContent").hidden = !authenticated;
+  const authSection = $("authSection");
+  if (authSection) authSection.hidden = OPEN_ACCESS_MODE || authenticated;
+  const appContent = $("appContent");
+  if (appContent) appContent.hidden = !authenticated;
 }
 
 function applyOpenAccessModeUI() {
@@ -2475,9 +2480,12 @@ function atualizarPreviaPerfil() {
 }
 
 function resetPasswordForm() {
-  $("senhaAtual").value = "";
-  $("novaSenha").value = "";
-  $("confirmarNovaSenha").value = "";
+  const senhaAtualEl = $("senhaAtual");
+  const novaSenhaEl = $("novaSenha");
+  const confirmarNovaSenhaEl = $("confirmarNovaSenha");
+  if (senhaAtualEl) senhaAtualEl.value = "";
+  if (novaSenhaEl) novaSenhaEl.value = "";
+  if (confirmarNovaSenhaEl) confirmarNovaSenhaEl.value = "";
 }
 
 function loadCurrentUserProfile() {
@@ -2998,13 +3006,14 @@ function renderDashboardCharts(labels, propostas, valores, statusSummary = {}) {
 
 function getUserFormData() {
   const role = normalizeUserRole($("usuarioTipo").value);
+  const usuarioSenhaEl = $("usuarioSenha");
   return {
     name: $("usuarioNome").value.trim(),
     email: normalizeEmail($("usuarioEmail").value),
     role,
     filial: DEFAULT_FILIAL,
     active: $("usuarioAtivo").checked,
-    password: $("usuarioSenha").value
+    password: usuarioSenhaEl ? usuarioSenhaEl.value : ""
   };
 }
 
@@ -3025,7 +3034,8 @@ function resetUserForm() {
     $("usuarioFilial").value = DEFAULT_FILIAL;
     $("usuarioFilial").disabled = true;
   }
-  $("usuarioSenha").value = "";
+  const usuarioSenhaEl = $("usuarioSenha");
+  if (usuarioSenhaEl) usuarioSenhaEl.value = "";
   $("usuarioAtivo").checked = true;
   $("usuarioAtivo").disabled = false;
   $("btnSalvarUsuario").textContent = "Salvar usuário";
@@ -3140,7 +3150,8 @@ function carregarUsuarioPorId(id) {
     $("usuarioFilial").disabled = true;
   }
   $("usuarioAtivo").checked = Boolean(user.active);
-  $("usuarioSenha").value = "";
+  const usuarioSenhaEl = $("usuarioSenha");
+  if (usuarioSenhaEl) usuarioSenhaEl.value = "";
   atualizarCampoAtivoUsuarioPorTipo();
   $("btnSalvarUsuario").textContent = "Atualizar usuário";
   activateTab("tabUsuarios");
@@ -4469,11 +4480,13 @@ async function trocarMinhaSenha(event) {
 
 function showForcedPasswordModal() {
   const overlay = $("changePasswordOverlay");
-  if (!overlay) return;
+  const forcedNovaSenhaEl = $("forcedNovaSenha");
+  const forcedConfirmarSenhaEl = $("forcedConfirmarSenha");
+  if (!overlay || !forcedNovaSenhaEl || !forcedConfirmarSenhaEl) return;
   overlay.hidden = false;
-  $("forcedNovaSenha").value = "";
-  $("forcedConfirmarSenha").value = "";
-  $("forcedNovaSenha").focus();
+  forcedNovaSenhaEl.value = "";
+  forcedConfirmarSenhaEl.value = "";
+  forcedNovaSenhaEl.focus();
 }
 
 function hideForcedPasswordModal() {
@@ -4485,8 +4498,12 @@ async function handleForcedPasswordChange(event) {
   event.preventDefault();
   if (!refreshCurrentUser()) return;
 
-  const novaSenha = $("forcedNovaSenha").value;
-  const confirmarSenha = $("forcedConfirmarSenha").value;
+  const forcedNovaSenhaEl = $("forcedNovaSenha");
+  const forcedConfirmarSenhaEl = $("forcedConfirmarSenha");
+  if (!forcedNovaSenhaEl || !forcedConfirmarSenhaEl) return;
+
+  const novaSenha = forcedNovaSenhaEl.value;
+  const confirmarSenha = forcedConfirmarSenhaEl.value;
 
   if (!novaSenha || !confirmarSenha) {
     showToast("Preencha os dois campos de senha.", true);
@@ -4528,10 +4545,18 @@ async function handleForcedPasswordChange(event) {
 }
 
 async function handleLogin(event) {
+  if (OPEN_ACCESS_MODE) {
+    event?.preventDefault();
+    return;
+  }
   event.preventDefault();
 
-  const email = normalizeEmail($("loginEmail").value);
-  const password = $("loginSenha").value;
+  const loginEmailEl = $("loginEmail");
+  const loginSenhaEl = $("loginSenha");
+  if (!loginEmailEl || !loginSenhaEl) return;
+
+  const email = normalizeEmail(loginEmailEl.value);
+  const password = loginSenhaEl.value;
 
   if (!email || !password) {
     showToast("Informe usuário e senha para entrar.", true);
@@ -4578,8 +4603,7 @@ async function handleLogin(event) {
   editingProposalId = "";
   logoDataUrl = currentUser.profile.logoDataUrl || "";
   await atualizarInterfaceAutenticada();
-  $("loginSenha").value = "";
-  if (currentUser.mustChangePassword) {
+  if (!OPEN_ACCESS_MODE && currentUser.mustChangePassword) {
     showForcedPasswordModal();
     return;
   }
@@ -4608,7 +4632,8 @@ async function handleLogout({ silent = false } = {}) {
   editingProposalId = "";
   logoDataUrl = "";
   updateAppVisibility();
-  $("loginSenha").value = "";
+  const loginSenhaEl = $("loginSenha");
+  if (loginSenhaEl) loginSenhaEl.value = "";
   if (!silent) {
     showToast("Sessão encerrada.");
   }
@@ -4684,19 +4709,25 @@ function bindStaticEvents() {
     });
   });
 
-  $("loginForm").addEventListener("submit", handleLogin);
+  const loginForm = $("loginForm");
+  if (loginForm) loginForm.addEventListener("submit", handleLogin);
   $("profileForm").addEventListener("submit", (event) => {
     event.preventDefault();
     salvarPerfil();
   });
-  $("passwordForm").addEventListener("submit", trocarMinhaSenha);
-  $("forcedPasswordForm").addEventListener("submit", handleForcedPasswordChange);
+  const passwordForm = $("passwordForm");
+  if (passwordForm) passwordForm.addEventListener("submit", trocarMinhaSenha);
+  const forcedPasswordForm = $("forcedPasswordForm");
+  if (forcedPasswordForm) forcedPasswordForm.addEventListener("submit", handleForcedPasswordChange);
   $("userForm").addEventListener("submit", salvarUsuario);
   $("clientForm").addEventListener("submit", salvarCliente);
   $("machineDbForm").addEventListener("submit", salvarBancoDadosEstimativas);
-  $("btnLogout").addEventListener("click", () => {
-    void handleLogout();
-  });
+  const btnLogout = $("btnLogout");
+  if (btnLogout) {
+    btnLogout.addEventListener("click", () => {
+      void handleLogout();
+    });
+  }
   $("btnLimparPerfil").addEventListener("click", limparPerfil);
   $("btnLimparUsuario").addEventListener("click", resetUserForm);
   $("btnLimparCliente").addEventListener("click", resetClientForm);
