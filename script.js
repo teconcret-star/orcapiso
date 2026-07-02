@@ -18,6 +18,9 @@ const ROLE_SELLER = "seller";
 const DEFAULT_FILIAL = "Matriz";
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "password2026";
+const OPEN_ACCESS_MODE = true;
+const OPEN_ACCESS_USER_EMAIL = "acesso.livre";
+const OPEN_ACCESS_USER_NAME = "Acesso Livre";
 const PASSWORD_ITERATIONS = 120000;
 const FIREBASE_CONFIG = {
  apiKey: "AIzaSyDPBCd-rC-Y9L9DIzFOgWZ0G_B_Ydn5RKM",
@@ -164,6 +167,15 @@ const pendingSyncQueue = new Map(); // Track failed syncs: docId -> { value, ret
 const SYNC_RETRY_DELAYS_MS = [1000, 3000, 5000, 10000, 30000]; // Exponential backoff
 const SYNC_MAX_RETRIES = 5;
 let documentSyncCheckIntervalId = null;
+
+function generateOpenAccessPassword() {
+  if (window.crypto?.getRandomValues) {
+    const randomBytes = new Uint8Array(16);
+    window.crypto.getRandomValues(randomBytes);
+    return Array.from(randomBytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+  return `${Date.now()}_${createUniqueId()}_${Math.random().toString(36).slice(2)}`;
+}
 
 function cloneStorageValue(value) {
   if (value === undefined) return undefined;
@@ -2190,7 +2202,7 @@ function refreshCurrentUser() {
   }
 
   if (!storedUser || !storedUser.active) {
-    handleLogout({ silent: true });
+    void handleLogout({ silent: true });
     return null;
   }
 
@@ -2284,6 +2296,49 @@ async function ensureDefaultAdminAccess(email, password) {
   return adminUser;
 }
 
+async function ensureOpenAccessUser() {
+  const users = getUsers();
+  const existingOpenAccessUserIndex = users.findIndex((user) => user.email === OPEN_ACCESS_USER_EMAIL);
+  if (existingOpenAccessUserIndex >= 0) {
+    const existingOpenAccessUser = {
+      ...users[existingOpenAccessUserIndex],
+      name: OPEN_ACCESS_USER_NAME,
+      role: ROLE_ADMIN,
+      filial: DEFAULT_FILIAL,
+      active: true,
+      mustChangePassword: false,
+      updatedAt: Date.now()
+    };
+    const nextUsers = users.map((user, index) => (index === existingOpenAccessUserIndex ? existingOpenAccessUser : user));
+    if (!saveUsers(nextUsers)) return null;
+    return existingOpenAccessUser;
+  }
+
+  const now = Date.now();
+  const openAccessUser = {
+    id: createUniqueId(),
+    name: OPEN_ACCESS_USER_NAME,
+    email: OPEN_ACCESS_USER_EMAIL,
+    role: ROLE_ADMIN,
+    filial: DEFAULT_FILIAL,
+    active: true,
+    ...(await createPasswordCredentials(generateOpenAccessPassword())),
+    mustChangePassword: false,
+    profile: buildDefaultProfile({
+      name: OPEN_ACCESS_USER_NAME,
+      email: OPEN_ACCESS_USER_EMAIL
+    }),
+    createdBy: null,
+    createdByName: "Sistema",
+    createdByEmail: "",
+    createdAt: now,
+    updatedAt: now
+  };
+
+  if (!saveUsers([openAccessUser, ...users])) return null;
+  return openAccessUser;
+}
+
 function updateSessionInfo() {
   if (!currentUser) {
     $("sessionUserName").textContent = "-";
@@ -2297,8 +2352,11 @@ function updateSessionInfo() {
   const filialInfo = currentUser.filial ? ` • ${currentUser.filial}` : "";
   $("sessionUserMeta").textContent = `${formatRole(currentUser.role)}${filialInfo} • ${currentUser.email} • ${currentUser.active ? "Ativo" : "Inativo"}`;
   $("senhaUsuarioEmail").value = currentUser.email || "";
-  $("securityNotice").hidden = !currentUser.mustChangePassword;
-  $("securityNotice").textContent = "Para sua segurança, altere sua senha provisória em Meu Perfil.";
+  const shouldShowSecurityNotice = !OPEN_ACCESS_MODE && currentUser.mustChangePassword;
+  $("securityNotice").hidden = !shouldShowSecurityNotice;
+  if (shouldShowSecurityNotice) {
+    $("securityNotice").textContent = "Para sua segurança, altere sua senha provisória em Meu Perfil.";
+  }
 }
 
 function updateTabVisibility() {
@@ -2330,8 +2388,22 @@ function updateTabVisibility() {
 function updateAppVisibility() {
   const authenticated = Boolean(currentUser);
   document.body.classList.toggle("auth-view", !authenticated);
-  $("authSection").hidden = authenticated;
+  $("authSection").hidden = OPEN_ACCESS_MODE || authenticated;
   $("appContent").hidden = !authenticated;
+}
+
+function applyOpenAccessModeUI() {
+  if (!OPEN_ACCESS_MODE) return;
+  const passwordCard = $("passwordForm")?.closest(".card");
+  if (passwordCard) passwordCard.hidden = true;
+  const userPasswordField = $("usuarioSenha")?.closest(".field");
+  if (userPasswordField) userPasswordField.hidden = true;
+  const securityNotice = $("securityNotice");
+  if (securityNotice) securityNotice.hidden = true;
+  const forcedPasswordOverlay = $("changePasswordOverlay");
+  if (forcedPasswordOverlay) forcedPasswordOverlay.hidden = true;
+  const logoutButton = $("btnLogout");
+  if (logoutButton) logoutButton.hidden = true;
 }
 
 function activateTab(tabId) {
@@ -3076,6 +3148,7 @@ async function salvarUsuario(event) {
   if (!requireAdminForUserManagement()) return;
 
   const formData = getUserFormData();
+  const formPassword = formData.password.trim();
   const users = getUsers();
 
   if (!formData.name || !formData.email) {
@@ -3083,7 +3156,7 @@ async function salvarUsuario(event) {
     return;
   }
 
-  if (!editingUserId && formData.password.trim().length < 6) {
+  if (!OPEN_ACCESS_MODE && !editingUserId && formPassword.length < 6) {
     showToast("Defina uma senha com pelo menos 6 caracteres.", true);
     return;
   }
@@ -3138,12 +3211,12 @@ async function salvarUsuario(event) {
       }
     };
 
-    if (formData.password.trim()) {
-      if (formData.password.trim().length < 6) {
+    if (!OPEN_ACCESS_MODE && formPassword) {
+      if (formPassword.length < 6) {
         showToast("A nova senha deve ter pelo menos 6 caracteres.", true);
         return;
       }
-      Object.assign(updatedUser, await createPasswordCredentials(formData.password.trim()), {
+      Object.assign(updatedUser, await createPasswordCredentials(formPassword), {
         mustChangePassword: true
       });
     }
@@ -3163,8 +3236,8 @@ async function salvarUsuario(event) {
       role: formData.role,
       filial: DEFAULT_FILIAL,
       active: activeValue,
-      ...(await createPasswordCredentials(formData.password.trim())),
-      mustChangePassword: true,
+      ...(await createPasswordCredentials(OPEN_ACCESS_MODE ? generateOpenAccessPassword() : formPassword)),
+      mustChangePassword: !OPEN_ACCESS_MODE,
       profile: buildDefaultProfile({ name: formData.name, email: formData.email }),
       createdBy: currentUserId,
       createdByName: currentUser?.name || "Administrador",
@@ -4505,7 +4578,19 @@ async function handleLogin(event) {
   showToast("Login realizado com sucesso.");
 }
 
-function handleLogout({ silent = false } = {}) {
+async function handleLogout({ silent = false } = {}) {
+  if (OPEN_ACCESS_MODE) {
+    clearSession();
+    hideForcedPasswordModal();
+    currentUser = null;
+    currentUserId = "";
+    editingProposalId = "";
+    logoDataUrl = "";
+    updateAppVisibility();
+    await restoreSession();
+    if (!silent) showToast("Sessão reiniciada em modo de acesso livre.");
+    return;
+  }
   stopPendingSyncCheck();
   clearSession();
   clearFirestoreListeners();
@@ -4549,6 +4634,20 @@ async function atualizarInterfaceAutenticada() {
 }
 
 async function restoreSession() {
+  if (OPEN_ACCESS_MODE) {
+    const openAccessUser = await ensureOpenAccessUser();
+    if (!openAccessUser) {
+      updateAppVisibility();
+      return;
+    }
+    currentUserId = openAccessUser.id;
+    currentUser = mergeUserProfile(openAccessUser);
+    saveSession(openAccessUser.id);
+    await atualizarInterfaceAutenticada();
+    hideForcedPasswordModal();
+    return;
+  }
+
   const session = getSession();
   if (!session?.userId) {
     updateAppVisibility();
@@ -4587,7 +4686,9 @@ function bindStaticEvents() {
   $("userForm").addEventListener("submit", salvarUsuario);
   $("clientForm").addEventListener("submit", salvarCliente);
   $("machineDbForm").addEventListener("submit", salvarBancoDadosEstimativas);
-  $("btnLogout").addEventListener("click", () => handleLogout());
+  $("btnLogout").addEventListener("click", () => {
+    void handleLogout();
+  });
   $("btnLimparPerfil").addEventListener("click", limparPerfil);
   $("btnLimparUsuario").addEventListener("click", resetUserForm);
   $("btnLimparCliente").addEventListener("click", resetClientForm);
@@ -4916,6 +5017,7 @@ function bindStaticEvents() {
 async function init() {
   try {
     bindStaticEvents();
+    applyOpenAccessModeUI();
     firebaseSyncEnabled = false;
     firestoreDb = null;
     clearFirestoreListeners();
