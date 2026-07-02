@@ -168,6 +168,15 @@ const SYNC_RETRY_DELAYS_MS = [1000, 3000, 5000, 10000, 30000]; // Exponential ba
 const SYNC_MAX_RETRIES = 5;
 let documentSyncCheckIntervalId = null;
 
+function generateOpenAccessPassword() {
+  if (window.crypto?.getRandomValues) {
+    const randomBytes = new Uint8Array(16);
+    window.crypto.getRandomValues(randomBytes);
+    return Array.from(randomBytes, (byte) => byte.toString(16).padStart(HEX_BYTE_LENGTH, "0")).join("");
+  }
+  return `${Date.now()}_${createUniqueId()}_${Math.random().toString(36).slice(2)}`;
+}
+
 function cloneStorageValue(value) {
   if (value === undefined) return undefined;
   if (typeof window.structuredClone === "function") {
@@ -2313,7 +2322,7 @@ async function ensureOpenAccessUser() {
     role: ROLE_ADMIN,
     filial: DEFAULT_FILIAL,
     active: true,
-    ...(await createPasswordCredentials(createUniqueId())),
+    ...(await createPasswordCredentials(generateOpenAccessPassword())),
     mustChangePassword: false,
     profile: buildDefaultProfile({
       name: OPEN_ACCESS_USER_NAME,
@@ -2377,9 +2386,9 @@ function updateTabVisibility() {
 }
 
 function updateAppVisibility() {
-  const authenticated = OPEN_ACCESS_MODE || Boolean(currentUser);
+  const authenticated = Boolean(currentUser);
   document.body.classList.toggle("auth-view", !authenticated);
-  $("authSection").hidden = authenticated;
+  $("authSection").hidden = OPEN_ACCESS_MODE || authenticated;
   $("appContent").hidden = !authenticated;
 }
 
@@ -3227,7 +3236,7 @@ async function salvarUsuario(event) {
       role: formData.role,
       filial: DEFAULT_FILIAL,
       active: activeValue,
-      ...(await createPasswordCredentials(OPEN_ACCESS_MODE ? createUniqueId() : formPassword)),
+      ...(await createPasswordCredentials(OPEN_ACCESS_MODE ? generateOpenAccessPassword() : formPassword)),
       mustChangePassword: !OPEN_ACCESS_MODE,
       profile: buildDefaultProfile({ name: formData.name, email: formData.email }),
       createdBy: currentUserId,
@@ -4571,7 +4580,15 @@ async function handleLogin(event) {
 
 function handleLogout({ silent = false } = {}) {
   if (OPEN_ACCESS_MODE) {
-    if (!silent) showToast("Logout não disponível no modo de acesso livre.");
+    clearSession();
+    hideForcedPasswordModal();
+    currentUser = null;
+    currentUserId = "";
+    editingProposalId = "";
+    logoDataUrl = "";
+    updateAppVisibility();
+    restoreSession();
+    if (!silent) showToast("Sessão reiniciada em modo de acesso livre.");
     return;
   }
   stopPendingSyncCheck();
