@@ -2202,7 +2202,7 @@ function refreshCurrentUser() {
   }
 
   if (!storedUser || !storedUser.active) {
-    handleLogout({ silent: true });
+    void handleLogout({ silent: true });
     return null;
   }
 
@@ -4578,7 +4578,7 @@ async function handleLogin(event) {
   showToast("Login realizado com sucesso.");
 }
 
-function handleLogout({ silent = false } = {}) {
+async function handleLogout({ silent = false } = {}) {
   if (OPEN_ACCESS_MODE) {
     clearSession();
     hideForcedPasswordModal();
@@ -4587,7 +4587,7 @@ function handleLogout({ silent = false } = {}) {
     editingProposalId = "";
     logoDataUrl = "";
     updateAppVisibility();
-    restoreSession();
+    await restoreSession();
     if (!silent) showToast("Sessão reiniciada em modo de acesso livre.");
     return;
   }
@@ -4686,7 +4686,9 @@ function bindStaticEvents() {
   $("userForm").addEventListener("submit", salvarUsuario);
   $("clientForm").addEventListener("submit", salvarCliente);
   $("machineDbForm").addEventListener("submit", salvarBancoDadosEstimativas);
-  $("btnLogout").addEventListener("click", () => handleLogout());
+  $("btnLogout").addEventListener("click", () => {
+    void handleLogout();
+  });
   $("btnLimparPerfil").addEventListener("click", limparPerfil);
   $("btnLimparUsuario").addEventListener("click", resetUserForm);
   $("btnLimparCliente").addEventListener("click", resetClientForm);
