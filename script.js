@@ -4203,10 +4203,10 @@ async function imprimirSomenteProposta() {
   const proposta = document.querySelector(".proposta-preview");
   if (!proposta) return false;
 
-  // Mobile browsers trigger printing of the parent window when
-  // iframe.contentWindow.print() is called, causing the entire page to print.
-  // Return false so the CSS @media print fallback is used instead.
-  if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+  // Touch-primary devices (phones, tablets) trigger printing of the parent
+  // window when iframe.contentWindow.print() is called, causing the entire
+  // page to print. Return false so the CSS @media print fallback is used.
+  if (window.matchMedia?.("(pointer: coarse)").matches) {
     return false;
   }
 
