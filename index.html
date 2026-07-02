@@ -14,37 +14,6 @@
     </header>
 
     <main class="container">
-      <section id="authSection" class="card auth-card" hidden>
-        <div class="auth-grid">
-          <div>
-            <h2>Acesso ao sistema</h2>
-            <p class="help-text auth-description">Somente usuários cadastrados pelo administrador podem acessar as propostas.</p>
-            <form id="loginForm" class="grid auth-form">
-              <div class="field">
-                <label for="loginEmail">Usuário</label>
-                <input type="text" id="loginEmail" placeholder="Ex.: admin" autocomplete="username" />
-              </div>
-
-              <div class="field">
-                <label for="loginSenha">Senha</label>
-                <input type="password" id="loginSenha" placeholder="Digite sua senha" autocomplete="current-password" />
-              </div>
-
-              <div class="field full">
-                <button type="submit" class="btn btn-primary">Entrar</button>
-              </div>
-            </form>
-          </div>
-
-          <aside class="auth-tip">
-            <h3>Primeiro acesso</h3>
-            <p>O sistema cria automaticamente um administrador padrão.</p>
-            <p>Use as credenciais já definidas pela administração para entrar no sistema.</p>
-            <small class="help-text">Se necessário, solicite suporte ao administrador responsável.</small>
-          </aside>
-        </div>
-      </section>
-
       <section id="appContent" hidden>
         <section class="card session-card">
           <div class="session-info">
@@ -53,9 +22,6 @@
               <strong id="sessionUserName">-</strong>
               <p id="sessionUserMeta">-</p>
               <span id="firebaseStatus" class="firebase-status firebase-status-ok" title="Dados salvos neste dispositivo">💾 Armazenamento local: ativo</span>
-            </div>
-            <div class="session-actions">
-              <button id="btnLogout" class="btn btn-secondary">Sair</button>
             </div>
           </div>
         </section>
@@ -119,29 +85,6 @@
             </form>
           </section>
 
-          <section class="card">
-            <h2>Trocar minha senha</h2>
-            <form id="passwordForm">
-              <input type="text" id="senhaUsuarioEmail" class="sr-only" autocomplete="username" tabindex="-1" />
-              <div class="grid">
-                <div class="field">
-                  <label for="senhaAtual">Senha atual</label>
-                  <input type="password" id="senhaAtual" autocomplete="current-password" />
-                </div>
-                <div class="field">
-                  <label for="novaSenha">Nova senha</label>
-                  <input type="password" id="novaSenha" autocomplete="new-password" />
-                </div>
-                <div class="field">
-                  <label for="confirmarNovaSenha">Confirmar nova senha</label>
-                  <input type="password" id="confirmarNovaSenha" autocomplete="new-password" />
-                </div>
-              </div>
-              <div class="acoes">
-                <button id="btnTrocarSenha" type="submit" class="btn btn-primary">Atualizar senha</button>
-              </div>
-            </form>
-          </section>
         </section>
 
         <section id="tabProposta" class="tab-panel">
@@ -1036,11 +979,6 @@
                     <option value="Matriz">Matriz</option>
                   </select>
                 </div>
-                <div class="field">
-                  <label for="usuarioSenha">Senha</label>
-                  <input type="password" id="usuarioSenha" placeholder="Defina uma senha" autocomplete="new-password" />
-                  <small class="help-text">Ao editar, preencha apenas se quiser redefinir a senha.</small>
-                </div>
                 <div class="field full field-checkbox">
                   <label class="checkbox-label" for="usuarioAtivo">
                     <input type="checkbox" id="usuarioAtivo" checked />
@@ -1197,27 +1135,6 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-
-  <div id="changePasswordOverlay" class="modal-overlay" hidden aria-modal="true" role="dialog" aria-labelledby="changePasswordModalTitle">
-    <div class="modal-box">
-      <div class="modal-icon">🔒</div>
-      <h2 id="changePasswordModalTitle">Defina sua senha de acesso</h2>
-      <p class="modal-desc">Você está usando uma senha provisória. Defina uma nova senha pessoal para continuar.</p>
-      <form id="forcedPasswordForm" novalidate>
-        <div class="field">
-          <label for="forcedNovaSenha">Nova senha</label>
-          <input type="password" id="forcedNovaSenha" autocomplete="new-password" placeholder="Mínimo 6 caracteres" />
-        </div>
-        <div class="field" style="margin-top:12px">
-          <label for="forcedConfirmarSenha">Confirmar nova senha</label>
-          <input type="password" id="forcedConfirmarSenha" autocomplete="new-password" placeholder="Repita a nova senha" />
-        </div>
-        <div class="acoes" style="margin-top:20px">
-          <button id="btnSalvarSenhaForced" type="submit" class="btn btn-primary">Salvar senha</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script defer src="script.js"></script>
