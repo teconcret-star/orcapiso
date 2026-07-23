@@ -1801,14 +1801,16 @@ async function preencherEnderecosPorCep() {
 }
 
 function getUsers() {
-  return normalizeUsersForStorage(usersCache);
+  usersCache = normalizeUsersForStorage(readJsonStorage(USERS_STORAGE_KEY, usersCache));
+  return usersCache;
 }
 
 function saveUsers(list) {
   const normalizedList = normalizeUsersForStorage(list);
   usersCache = normalizedList;
+  const success = writeJsonStorage(USERS_STORAGE_KEY, normalizedList);
   syncFirestoreCollectionRecords(FIRESTORE_USERS_COLLECTION, normalizedList);
-  return true;
+  return success;
 }
 
 function getSavedProposals() {
